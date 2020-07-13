@@ -200,12 +200,14 @@ func insertionSort(sl []uint64) {
 	}
 }
 
+// Visit 接受一个闭包函数作为参数，Visit 就是一个遍历函数实现，遍历所有的 peers，一次调用 f；
 // Visit invokes the supplied closure for all tracked progresses in stable order.
 func (p *ProgressTracker) Visit(f func(id uint64, pr *Progress)) {
 	n := len(p.Progress)
 	// We need to sort the IDs and don't want to allocate since this is hot code.
 	// The optimization here mirrors that in `(MajorityConfig).CommittedIndex`,
 	// see there for details.
+	// 写怎么复杂？ 为了就是一个性能优化，长度较小的，分配在栈上，较大的分配在堆上；值得吗。
 	var sl [7]uint64
 	ids := sl[:]
 	if len(sl) >= n {
@@ -213,11 +215,13 @@ func (p *ProgressTracker) Visit(f func(id uint64, pr *Progress)) {
 	} else {
 		ids = make([]uint64, n)
 	}
+	// 遍历 peers 赋值进度
 	for id := range p.Progress {
 		n--
 		ids[n] = id
 	}
 	insertionSort(ids)
+	// id, Progress 作为参数传入，依次处理
 	for _, id := range ids {
 		f(id, p.Progress[id])
 	}

@@ -167,6 +167,7 @@ func (pr *Progress) MaybeUpdate(n uint64) bool {
 		updated = true
 		pr.ProbeAcked()
 	}
+	// 更新 Next，给下一个要发送的日志提供位置
 	if pr.Next < n+1 {
 		pr.Next = n + 1
 	}

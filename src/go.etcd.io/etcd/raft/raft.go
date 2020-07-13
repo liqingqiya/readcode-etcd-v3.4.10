@@ -455,7 +455,9 @@ func (r *raft) sendAppend(to uint64) {
 // ("empty" messages are useful to convey updated Commit indexes, but
 // are undesirable when we're sending multiple messages in a batch).
 func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
+	// 获取目标节点的赋值进度
 	pr := r.prs.Progress[to]
+	// 如果是暂停状态的，那么跳出，返回 false
 	if pr.IsPaused() {
 		return false
 	}
@@ -511,6 +513,7 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 			case tracker.StateReplicate:
 				last := m.Entries[n-1].Index
 				pr.OptimisticUpdate(last)
+				// 滑动窗口
 				pr.Inflights.Add(last)
 			case tracker.StateProbe:
 				pr.ProbeSent = true
@@ -550,8 +553,9 @@ func (r *raft) sendHeartbeat(to uint64, ctx []byte) {
 // bcastAppend sends RPC, with entries to all peers that are not up-to-date
 // according to the progress recorded in r.prs.
 func (r *raft) bcastAppend() {
-	// 根据进度发送消息给每个 peer 节点
+	// 根据进度发送消息给每个 peer 节点, r.prs 就是抽象处的整个 peers 的进度；
 	r.prs.Visit(func(id uint64, _ *tracker.Progress) {
+		// 如果是自己，那么跳过，如果是别的节点，那么就走到下面去，发送消息；
 		if id == r.id {
 			return
 		}
