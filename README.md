@@ -26,18 +26,24 @@
 
 - [raft/log.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/raft/log.go)
 
+###### unstable log
+
+- [raft/log_unstable.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/raft/log_unstable.go)
+
 #### node ( raft StateMachine )
+
+raft 状态机的实现核心。
 
 - [raft/node.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/raft/node.go)
 - [raft/raft.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/raft/raft.go)
 - [raft/rawnode.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/raft/rawnode.go)
 
-
-###### unstable log
-
 ###### MemoryStorage
+
+- [raft/storage.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/raft/storage.go)
 
 
 ### wal
 
 - [wal/wal.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/wal/wal.go)
+- [wal/file_pipeline.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/wal/file_pipeline.go)
