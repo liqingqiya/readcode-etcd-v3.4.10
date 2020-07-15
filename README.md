@@ -11,11 +11,27 @@
 
 ## 模块学习
 
-### raft 
+### raftexample 模块
 
-#### raft StateMachine
+这个模块是使用 raft 实现的完整的一个 kv 程序。对于理解 etcd/raft 非常有参考意义。
+
+- [contrib/raftexample/httpapi.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/contrib/raftexample/httpapi.go)
+- [contrib/raftexample/kvstore.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/contrib/raftexample/kvstore.go)
+- [contrib/raftexample/main.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/contrib/raftexample/main.go)
+- [contrib/raftexample/raft.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/contrib/raftexample/raft.go)
+
+### raft 模块
 
 ##### raftLog
+
+- [raft/log.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/raft/log.go)
+
+#### node ( raft StateMachine )
+
+- [raft/node.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/raft/node.go)
+- [raft/raft.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/raft/raft.go)
+- [raft/rawnode.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/raft/rawnode.go)
+
 
 ###### unstable log
 
@@ -24,3 +40,4 @@
 
 ### wal
 
+- [wal/wal.go](https://github.com/liqingqiya/readcode-etcd-master/blob/master/src/go.etcd.io/etcd/wal/wal.go)
