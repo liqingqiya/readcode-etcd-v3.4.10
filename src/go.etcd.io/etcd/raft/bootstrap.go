@@ -27,6 +27,7 @@ import (
 // It is recommended that instead of calling this method, applications bootstrap
 // their state manually by setting up a Storage that has a first index > 1 and
 // which stores the desired ConfState as its InitialState.
+// 初始化
 func (rn *RawNode) Bootstrap(peers []Peer) error {
 	if len(peers) == 0 {
 		return errors.New("must provide at least one peer to Bootstrap")

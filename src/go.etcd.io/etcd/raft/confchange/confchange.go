@@ -122,6 +122,7 @@ func (c Changer) LeaveJoint() (tracker.Config, tracker.ProgressMap, error) {
 	return checkAndReturn(cfg, prs)
 }
 
+// 应用配置, 初始化出 Progress
 // Simple carries out a series of configuration changes that (in aggregate)
 // mutates the incoming majority config Voters[0] by at most one. This method
 // will return an error if that is not the case, if the resulting quorum is

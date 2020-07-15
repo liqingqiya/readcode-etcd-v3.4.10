@@ -1186,12 +1186,15 @@ func stepLeader(r *raft, m pb.Message) error {
 	case pb.MsgAppResp:
 		pr.RecentActive = true
 
+		// 如果收到的是拒绝，那么准备下一步处理;
 		if m.Reject {
 			// 收到 follower 的拒绝消息，所以准备进入 probe 状态，探测正确的日志复制的位置
 			r.logger.Debugf("%x received MsgAppResp(MsgApp was rejected, lastindex: %d) from %x for index %d",
 				r.id, m.RejectHint, m.From, m.Index)
+			// 复制状态后退
 			if pr.MaybeDecrTo(m.Index, m.RejectHint) {
 				r.logger.Debugf("%x decreased progress of %x to [%s]", r.id, m.From, pr)
+				// 进入 StateProbe 状态
 				if pr.State == tracker.StateReplicate {
 					pr.BecomeProbe()
 				}
@@ -1202,6 +1205,7 @@ func stepLeader(r *raft, m pb.Message) error {
 			if pr.MaybeUpdate(m.Index) {
 				switch {
 				case pr.State == tracker.StateProbe:
+					// 之前在探测，现在终于收到 follwer 的接受了，状态切成 StateReplicate
 					pr.BecomeReplicate()
 				case pr.State == tracker.StateSnapshot && pr.Match >= pr.PendingSnapshot:
 					// TODO(tbg): we should also enter this branch if a snapshot is

@@ -38,6 +38,17 @@ const (
 	StateSnapshot
 )
 
+/*
+Progress 存在于 3 个状态，StateProbe, StateReplicate, StateSnapshot。
+
+StateReplicate <-> StateProbe <-> StateSnapshot
+
+1. leader 收到拒绝的消息，会由 StateReplicate 切成 StateProbe
+2. 收到恢复的消息之后，切成 StateReplicate。这两个状态可以相互转换；
+3. 确认 follower 收到消息没希望了，直接发个完整的快照过去；
+4. 收到消息之后，先切成 StateProbe 状态；
+*/
+
 var prstmap = [...]string{
 	"StateProbe",
 	"StateReplicate",

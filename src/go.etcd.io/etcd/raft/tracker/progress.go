@@ -165,6 +165,7 @@ func (pr *Progress) MaybeUpdate(n uint64) bool {
 		// 更新 pr.Match
 		pr.Match = n
 		updated = true
+		// 不再发送 Probe 了，探测结束
 		pr.ProbeAcked()
 	}
 	// 更新 Next，给下一个要发送的日志提供位置
