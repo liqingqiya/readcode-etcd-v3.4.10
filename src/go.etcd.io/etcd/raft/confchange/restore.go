@@ -97,6 +97,7 @@ func toConfChangeSingle(cs pb.ConfState) (out []pb.ConfChangeSingle, in []pb.Con
 }
 
 func chain(chg Changer, ops ...func(Changer) (tracker.Config, tracker.ProgressMap, error)) (tracker.Config, tracker.ProgressMap, error) {
+	// 链式处理 chg，不断的更新 chg.Tracker.Config, chg.Tracker.Progress
 	for _, op := range ops {
 		cfg, prs, err := op(chg)
 		if err != nil {
