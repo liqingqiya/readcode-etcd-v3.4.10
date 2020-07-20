@@ -328,12 +328,14 @@ func (*HardState) Descriptor() ([]byte, []int) { return fileDescriptorRaft, []in
 
 // 集群配置状态
 type ConfState struct {
+	// 投票的人
 	// The voters in the incoming config. (If the configuration is not joint,
 	// then the outgoing config is empty).
 	Voters []uint64 `protobuf:"varint,1,rep,name=voters" json:"voters,omitempty"`
 	// The learners in the incoming config.
 	Learners []uint64 `protobuf:"varint,2,rep,name=learners" json:"learners,omitempty"`
 	// The voters in the outgoing config.
+	// 投票的人 ?
 	VotersOutgoing []uint64 `protobuf:"varint,3,rep,name=voters_outgoing,json=votersOutgoing" json:"voters_outgoing,omitempty"`
 	// The nodes that will become learners when the outgoing config is removed.
 	// These nodes are necessarily currently in nodes_joint (or they would have

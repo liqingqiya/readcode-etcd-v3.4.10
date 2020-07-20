@@ -148,6 +148,7 @@ func (c Changer) Simple(ccs ...pb.ConfChangeSingle) (tracker.Config, tracker.Pro
 	return checkAndReturn(cfg, prs)
 }
 
+// 配置变更应用
 // apply a change to the configuration. By convention, changes to voters are
 // always made to the incoming majority config Voters[0]. Voters[1] is either
 // empty or preserves the outgoing majority configuration while in a joint state.
@@ -161,10 +162,13 @@ func (c Changer) apply(cfg *tracker.Config, prs tracker.ProgressMap, ccs ...pb.C
 		}
 		switch cc.Type {
 		case pb.ConfChangeAddNode:
+			// 添加正常的选举节点
 			c.makeVoter(cfg, prs, cc.NodeID)
 		case pb.ConfChangeAddLearnerNode:
+			// 添加 Learner 节点
 			c.makeLearner(cfg, prs, cc.NodeID)
 		case pb.ConfChangeRemoveNode:
+			// 删除对应节点
 			c.remove(cfg, prs, cc.NodeID)
 		case pb.ConfChangeUpdateNode:
 		default:
@@ -253,11 +257,13 @@ func (c Changer) remove(cfg *tracker.Config, prs tracker.ProgressMap, id uint64)
 func (c Changer) initProgress(cfg *tracker.Config, prs tracker.ProgressMap, id uint64, isLearner bool) {
 	// follower 可以参加选举和投票，learner 不可以；但是，无论是 follower 还是 learner 都会有一个 Progress
 	if !isLearner {
+		// 如果是非 leader 节点，那么就赋值 incoming
 		incoming(cfg.Voters)[id] = struct{}{}
 	} else {
 		nilAwareAdd(&cfg.Learners, id)
 	}
 
+	// 对应节点 Progress 的赋值
 	// 初始化 Progress 需要给定 Next，Match，Inflights 容量以及是否是 learner
 	// raft 的初始化时候 Match=0，Next=1
 	prs[id] = &tracker.Progress{
