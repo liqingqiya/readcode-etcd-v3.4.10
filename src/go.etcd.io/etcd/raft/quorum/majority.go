@@ -21,6 +21,7 @@ import (
 	"strings"
 )
 
+// map 结构，key 是 peer id；
 // MajorityConfig is a set of IDs that uses majority quorums to make decisions.
 type MajorityConfig map[uint64]struct{}
 
@@ -182,6 +183,7 @@ func (c MajorityConfig) CommittedIndex(l AckedIndexer) Index {
 }
 
 // 选举结果的统计，这个函数就是一个唱票的实现
+// votes 参数标识投了票的人（true表示投了，false表示弃权）
 // VoteResult takes a mapping of voters to yes/no (true/false) votes and returns
 // a result indicating whether the vote is pending (i.e. neither a quorum of
 // yes/no has been reached), won (a quorum of yes has been reached), or lost (a

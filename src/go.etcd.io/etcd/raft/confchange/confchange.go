@@ -30,8 +30,8 @@ import (
 // configuration.
 // 配置变更器的封装
 type Changer struct {
-	Tracker   tracker.ProgressTracker
-	LastIndex uint64
+	Tracker   tracker.ProgressTracker // 进度跟踪对象
+	LastIndex uint64                  //
 }
 
 // EnterJoint verifies that the outgoing (=right) majority config of the joint
@@ -62,6 +62,7 @@ func (c Changer) EnterJoint(autoLeave bool, ccs ...pb.ConfChangeSingle) (tracker
 		err := errors.New("can't make a zero-voter config joint")
 		return c.err(err)
 	}
+	// 清理 outgoing 配置
 	// Clear the outgoing config.
 	*outgoingPtr(&cfg.Voters) = quorum.MajorityConfig{}
 	// Copy incoming to outgoing.
@@ -103,6 +104,7 @@ func (c Changer) LeaveJoint() (tracker.Config, tracker.ProgressMap, error) {
 		err := fmt.Errorf("configuration is not joint: %v", cfg)
 		return c.err(err)
 	}
+	// LearnerNext 是准备变成 learner 的 id 列表，在这个地方变成 learner 角色
 	for id := range cfg.LearnersNext {
 		nilAwareAdd(&cfg.Learners, id)
 		prs[id].IsLearner = true
@@ -110,9 +112,12 @@ func (c Changer) LeaveJoint() (tracker.Config, tracker.ProgressMap, error) {
 	cfg.LearnersNext = nil
 
 	for id := range outgoing(cfg.Voters) {
+		// 判断这个 outgoing 的节点是否是 voter
 		_, isVoter := incoming(cfg.Voters)[id]
+		// 判断这个 outgoing 的节点是否是 learner
 		_, isLearner := cfg.Learners[id]
 
+		// 如果不是 voter ，也不是 learner ，那么就从进度器里删除
 		if !isVoter && !isLearner {
 			delete(prs, id)
 		}
@@ -138,6 +143,7 @@ func (c Changer) Simple(ccs ...pb.ConfChangeSingle) (tracker.Config, tracker.Pro
 		err := errors.New("can't apply simple config change in joint config")
 		return c.err(err)
 	}
+	// 应用配置
 	if err := c.apply(&cfg, prs, ccs...); err != nil {
 		return c.err(err)
 	}
@@ -181,11 +187,13 @@ func (c Changer) apply(cfg *tracker.Config, prs tracker.ProgressMap, ccs ...pb.C
 	return nil
 }
 
+// 添加 voter
 // makeVoter adds or promotes the given ID to be a voter in the incoming
 // majority config.
 func (c Changer) makeVoter(cfg *tracker.Config, prs tracker.ProgressMap, id uint64) {
 	pr := prs[id]
 	if pr == nil {
+		// 初始化赋值进度
 		c.initProgress(cfg, prs, id, false /* isLearner */)
 		return
 	}
@@ -193,6 +201,7 @@ func (c Changer) makeVoter(cfg *tracker.Config, prs tracker.ProgressMap, id uint
 	pr.IsLearner = false
 	nilAwareDelete(&cfg.Learners, id)
 	nilAwareDelete(&cfg.LearnersNext, id)
+	// 添加集群配置，voter 投票人
 	incoming(cfg.Voters)[id] = struct{}{}
 	return
 }
@@ -216,9 +225,13 @@ func (c Changer) makeLearner(cfg *tracker.Config, prs tracker.ProgressMap, id ui
 		c.initProgress(cfg, prs, id, true /* isLearner */)
 		return
 	}
+
+	// 如果已经是 learner ，那么直接退出
 	if pr.IsLearner {
 		return
 	}
+
+	// 完全新建的过程，那么
 	// Remove any existing voter in the incoming config...
 	c.remove(cfg, prs, id)
 	// ... but save the Progress.
@@ -229,8 +242,10 @@ func (c Changer) makeLearner(cfg *tracker.Config, prs tracker.ProgressMap, id ui
 	//
 	// Otherwise, add a regular learner right away.
 	if _, onRight := outgoing(cfg.Voters)[id]; onRight {
+		// 这种情况不能直接变成 learner，先加到 LearnersNext 列表中，等待 LeaveJoint 的时候，peer id 会变成 learner
 		nilAwareAdd(&cfg.LearnersNext, id)
 	} else {
+		// 没有在 outgoing 列表里，那么说明是全新刚进来的节点，配置成 learner
 		pr.IsLearner = true
 		nilAwareAdd(&cfg.Learners, id)
 	}
@@ -257,6 +272,7 @@ func (c Changer) remove(cfg *tracker.Config, prs tracker.ProgressMap, id uint64)
 func (c Changer) initProgress(cfg *tracker.Config, prs tracker.ProgressMap, id uint64, isLearner bool) {
 	// follower 可以参加选举和投票，learner 不可以；但是，无论是 follower 还是 learner 都会有一个 Progress
 	if !isLearner {
+		// 加入 voter 集群
 		// 如果是非 leader 节点，那么就赋值 incoming
 		incoming(cfg.Voters)[id] = struct{}{}
 	} else {
@@ -286,6 +302,7 @@ func (c Changer) initProgress(cfg *tracker.Config, prs tracker.ProgressMap, id u
 	}
 }
 
+// 校验配置的正确性
 // checkInvariants makes sure that the config and progress are compatible with
 // each other. This is used to check both what the Changer is initialized with,
 // as well as what it returns.
@@ -413,11 +430,15 @@ func symdiff(l, r map[uint64]struct{}) int {
 	return n
 }
 
+//
 func joint(cfg tracker.Config) bool {
 	return len(outgoing(cfg.Voters)) > 0
 }
 
+// 这里就体现了 JointConfig 为[2]数组的原因
+// 加入 raft 集群的节点
 func incoming(voters quorum.JointConfig) quorum.MajorityConfig      { return voters[0] }
+// 离开 raft 集群的节点
 func outgoing(voters quorum.JointConfig) quorum.MajorityConfig      { return voters[1] }
 func outgoingPtr(voters *quorum.JointConfig) *quorum.MajorityConfig { return &voters[1] }
 

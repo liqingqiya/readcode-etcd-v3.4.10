@@ -1592,6 +1592,7 @@ func (r *raft) applyConfChange(cc pb.ConfChangeV2) pb.ConfState {
 			Tracker:   r.prs,
 			LastIndex: r.raftLog.lastIndex(),
 		}
+		//
 		if cc.LeaveJoint() {
 			return changer.LeaveJoint()
 		} else if autoLeave, ok := cc.EnterJoint(); ok {
