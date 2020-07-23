@@ -22,11 +22,11 @@ import (
 	"net/http"
 	"time"
 
-	"go.etcd.io/etcd/v3/etcdserver/api/snap"
-	"go.etcd.io/etcd/v3/pkg/httputil"
-	pioutil "go.etcd.io/etcd/v3/pkg/ioutil"
-	"go.etcd.io/etcd/v3/pkg/types"
-	"go.etcd.io/etcd/v3/raft"
+	"go.etcd.io/etcd/etcdserver/api/snap"
+	"go.etcd.io/etcd/pkg/httputil"
+	pioutil "go.etcd.io/etcd/pkg/ioutil"
+	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/raft"
 
 	"github.com/dustin/go-humanize"
 	"go.uber.org/zap"
@@ -76,18 +76,20 @@ func (s *snapshotSender) send(merged snap.Message) {
 	defer body.Close()
 
 	u := s.picker.pick()
-	req := createPostRequest(s.tr.Logger, u, RaftSnapshotPrefix, body, "application/octet-stream", s.tr.URLs, s.from, s.cid)
+	req := createPostRequest(u, RaftSnapshotPrefix, body, "application/octet-stream", s.tr.URLs, s.from, s.cid)
 
-	snapshotSizeVal := uint64(merged.TotalSize)
-	snapshotSize := humanize.Bytes(snapshotSizeVal)
+	snapshotTotalSizeVal := uint64(merged.TotalSize)
+	snapshotTotalSize := humanize.Bytes(snapshotTotalSizeVal)
 	if s.tr.Logger != nil {
 		s.tr.Logger.Info(
 			"sending database snapshot",
 			zap.Uint64("snapshot-index", m.Snapshot.Metadata.Index),
 			zap.String("remote-peer-id", to),
-			zap.Uint64("bytes", snapshotSizeVal),
-			zap.String("size", snapshotSize),
+			zap.Int64("bytes", merged.TotalSize),
+			zap.String("size", snapshotTotalSize),
 		)
+	} else {
+		plog.Infof("start to send database snapshot [index: %d, to %s, size %s]...", m.Snapshot.Metadata.Index, types.ID(m.To), snapshotTotalSize)
 	}
 
 	snapshotSendInflights.WithLabelValues(to).Inc()
@@ -103,10 +105,12 @@ func (s *snapshotSender) send(merged snap.Message) {
 				"failed to send database snapshot",
 				zap.Uint64("snapshot-index", m.Snapshot.Metadata.Index),
 				zap.String("remote-peer-id", to),
-				zap.Uint64("bytes", snapshotSizeVal),
-				zap.String("size", snapshotSize),
+				zap.Int64("bytes", merged.TotalSize),
+				zap.String("size", snapshotTotalSize),
 				zap.Error(err),
 			)
+		} else {
+			plog.Warningf("database snapshot [index: %d, to: %s] failed to be sent out (%v)", m.Snapshot.Metadata.Index, types.ID(m.To), err)
 		}
 
 		// errMemberRemoved is a critical error since a removed member should
@@ -134,9 +138,11 @@ func (s *snapshotSender) send(merged snap.Message) {
 			"sent database snapshot",
 			zap.Uint64("snapshot-index", m.Snapshot.Metadata.Index),
 			zap.String("remote-peer-id", to),
-			zap.Uint64("bytes", snapshotSizeVal),
-			zap.String("size", snapshotSize),
+			zap.Int64("bytes", merged.TotalSize),
+			zap.String("size", snapshotTotalSize),
 		)
+	} else {
+		plog.Infof("database snapshot [index: %d, to: %s] sent out successfully", m.Snapshot.Metadata.Index, types.ID(m.To))
 	}
 
 	sentBytes.WithLabelValues(to).Add(float64(merged.TotalSize))
@@ -180,7 +186,7 @@ func (s *snapshotSender) post(req *http.Request) (err error) {
 		if r.err != nil {
 			return r.err
 		}
-		return checkPostResponse(s.tr.Logger, r.resp, r.body, req, s.to)
+		return checkPostResponse(r.resp, r.body, req, s.to)
 	}
 }
 
@@ -191,6 +197,8 @@ func createSnapBody(lg *zap.Logger, merged snap.Message) io.ReadCloser {
 	if err := enc.encode(&merged.Message); err != nil {
 		if lg != nil {
 			lg.Panic("failed to encode message", zap.Error(err))
+		} else {
+			plog.Panicf("encode message error (%v)", err)
 		}
 	}
 

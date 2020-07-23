@@ -18,17 +18,13 @@ import (
 	"fmt"
 	"log"
 
-	pb "go.etcd.io/etcd/v3/raft/raftpb"
+	pb "go.etcd.io/etcd/raft/raftpb"
 )
 
 type raftLog struct {
-	// 已经持久化的日志项
 	// storage contains all stable entries since the last snapshot.
 	storage Storage
 
-	// 还没有持久化的日志项
-	// 于 leader 节点，日志项来自客户端的更新请求
-	// 于 follower 节点，日志项来自 leader 节点的复制
 	// unstable contains all unstable entries and snapshot.
 	// they will be saved into storage.
 	unstable unstable
@@ -90,25 +86,17 @@ func (l *raftLog) String() string {
 // maybeAppend returns (0, false) if the entries cannot be appended. Otherwise,
 // it returns (last index of new entries, true).
 func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...pb.Entry) (lastnewi uint64, ok bool) {
-	// 判断 index 所对应的日志是否 term 匹配
 	if l.matchTerm(index, logTerm) {
-		// index 是之前的索引编号（最后一个）
-		// lastnewi 是 last new index 的缩写，这个是指添加 ents 之后，最后一个的索引
 		lastnewi = index + uint64(len(ents))
 		ci := l.findConflict(ents)
 		switch {
-		case ci == 0: // 没有冲突
-		case ci <= l.committed: // 非预期，新来的日志，竟然又跳到已经 commit 过的前面去了
+		case ci == 0:
+		case ci <= l.committed:
 			l.logger.Panicf("entry %d conflict with committed entry [committed(%d)]", ci, l.committed)
 		default:
-			// 有冲突的场景，裁剪
 			offset := index + 1
-			// 裁剪，append 消息到 raftLog 中
 			l.append(ents[ci-offset:]...)
 		}
-		// 更新本地 commit 信息
-		// committed 这个是 leader 传过来的，那么就一定是多数节点 commit 过的消息
-		l.logger.Infof("committed: %v, lastnewi: %v", committed, lastnewi)
 		l.commitTo(min(committed, lastnewi))
 		return lastnewi, true
 	}
@@ -138,10 +126,7 @@ func (l *raftLog) append(ents ...pb.Entry) uint64 {
 // The first entry MUST have an index equal to the argument 'from'.
 // The index of the given entries MUST be continuously increasing.
 func (l *raftLog) findConflict(ents []pb.Entry) uint64 {
-	// 遍历 ents
 	for _, ne := range ents {
-		// 判断 term 是否对的上，如果对不上，那么继续判断消息的索引是否比当前最后一条小，如果小，那么说明是冲突的
-		// 返回冲突的位置
 		if !l.matchTerm(ne.Index, ne.Term) {
 			if ne.Index <= l.lastIndex() {
 				l.logger.Infof("found conflict at index %d [existing term: %d, conflicting term: %d]",
@@ -160,13 +145,11 @@ func (l *raftLog) unstableEntries() []pb.Entry {
 	return l.unstable.entries
 }
 
-// 返回 commit 过，但是还没有 apply 的消息
 // nextEnts returns all the available entries for execution.
 // If applied is smaller than the index of snapshot, it returns all committed
 // entries after the index of snapshot.
 func (l *raftLog) nextEnts() (ents []pb.Entry) {
 	off := max(l.applied+1, l.firstIndex())
-	// 如果 commit 游标比 apply 的大
 	if l.committed+1 > off {
 		ents, err := l.slice(off, l.committed+1, l.maxNextEntsSize)
 		if err != nil {
@@ -213,18 +196,12 @@ func (l *raftLog) lastIndex() uint64 {
 	return i
 }
 
-// commit 消息, 更新 tocommit 消息
-// 有以下多种场景都会更新 commit
-// 1. heartbeat 	: 收到 leader 心跳信息的时候
-// 2. maybeAppend 	: 收到 leader append oplog 消息的时候
-// 3. maybeCommit	: leader 更新 commit 信息
 func (l *raftLog) commitTo(tocommit uint64) {
 	// never decrease commit
 	if l.committed < tocommit {
 		if l.lastIndex() < tocommit {
 			l.logger.Panicf("tocommit(%d) is out of range [lastIndex(%d)]. Was the raft log corrupted, truncated, or lost?", tocommit, l.lastIndex())
 		}
-		l.logger.Infof("l.committed: %v -> tocommit: %v", l.committed, tocommit)
 		l.committed = tocommit
 	}
 }
@@ -236,7 +213,6 @@ func (l *raftLog) appliedTo(i uint64) {
 	if l.committed < i || i < l.applied {
 		l.logger.Panicf("applied(%d) is out of range [prevApplied(%d), committed(%d)]", i, l.applied, l.committed)
 	}
-	// apply index 更新到 raftLog 里
 	l.applied = i
 }
 
@@ -252,9 +228,7 @@ func (l *raftLog) lastTerm() uint64 {
 	return t
 }
 
-// 拿到指定位置的 term
 func (l *raftLog) term(i uint64) (uint64, error) {
-	// 第一个是 dummy entry
 	// the valid term range is [index of dummy entry, last index]
 	dummyIndex := l.firstIndex() - 1
 	if i < dummyIndex || i > l.lastIndex() {
@@ -315,7 +289,6 @@ func (l *raftLog) matchTerm(i, term uint64) bool {
 }
 
 func (l *raftLog) maybeCommit(maxIndex, term uint64) bool {
-	// 如果事实 commit index 大于当前记录，那么就设置；
 	if maxIndex > l.committed && l.zeroTermOnErrCompacted(l.term(maxIndex)) == term {
 		l.commitTo(maxIndex)
 		return true

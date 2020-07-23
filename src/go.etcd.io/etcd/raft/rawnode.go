@@ -17,8 +17,8 @@ package raft
 import (
 	"errors"
 
-	pb "go.etcd.io/etcd/v3/raft/raftpb"
-	"go.etcd.io/etcd/v3/raft/tracker"
+	pb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/tracker"
 )
 
 // ErrStepLocalMsg is returned when try to step a local raft message
@@ -31,7 +31,6 @@ var ErrStepPeerNotFound = errors.New("raft: cannot step as peer not found")
 // RawNode is a thread-unsafe Node.
 // The methods of this struct correspond to the methods of Node and are described
 // more fully there.
-// 对 raft 最原始的一层封装
 type RawNode struct {
 	raft       *raft
 	prevSoftSt *SoftState
@@ -99,9 +98,7 @@ func (rn *RawNode) ProposeConfChange(cc pb.ConfChangeI) error {
 	return rn.raft.Step(m)
 }
 
-// ApplyConfChange applies a config change to the local node. The app must call
-// this when it applies a configuration change, except when it decides to reject
-// the configuration change, in which case no call must take place.
+// ApplyConfChange applies a config change to the local node.
 func (rn *RawNode) ApplyConfChange(cc pb.ConfChangeI) *pb.ConfState {
 	cs := rn.raft.applyConfChange(cc.AsV2())
 	return &cs
@@ -148,7 +145,6 @@ func (rn *RawNode) acceptReady(rd Ready) {
 	rn.raft.msgs = nil
 }
 
-// 判断是否能获取到一个可操作的 Ready 结构
 // HasReady called when RawNode user need to check if any Ready pending.
 // Checking logic in this method should be consistent with Ready.containsUpdates().
 func (rn *RawNode) HasReady() bool {

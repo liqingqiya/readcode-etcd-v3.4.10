@@ -16,18 +16,17 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/v3/clientv3"
-	"go.etcd.io/etcd/v3/clientv3/concurrency"
-	"go.etcd.io/etcd/v3/etcdserver/api/v3rpc/rpctypes"
-	"go.etcd.io/etcd/v3/integration"
-	"go.etcd.io/etcd/v3/pkg/testutil"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/clientv3/concurrency"
+	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
+	"go.etcd.io/etcd/integration"
+	"go.etcd.io/etcd/pkg/testutil"
 )
 
 func TestLeaseNotFoundError(t *testing.T) {
@@ -269,10 +268,16 @@ func TestLeaseKeepAliveNotFound(t *testing.T) {
 
 	<-lchs[0].ch
 	if _, ok := <-lchs[0].ch; !ok {
-		t.Fatal("closed keepalive on wrong lease")
+		t.Fatalf("closed keepalive on wrong lease")
 	}
-	if _, ok := <-lchs[1].ch; ok {
-		t.Fatal("expected closed keepalive")
+
+	timec := time.After(5 * time.Second)
+	for range lchs[1].ch {
+		select {
+		case <-timec:
+			t.Fatalf("revoke did not close keep alive")
+		default:
+		}
 	}
 }
 
@@ -393,22 +398,18 @@ func TestLeaseRevokeNewAfterClose(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	errMsgCh := make(chan string, 1)
+	donec := make(chan struct{})
 	go func() {
 		_, err := cli.Revoke(context.TODO(), leaseID)
 		if !clientv3.IsConnCanceled(err) {
-			errMsgCh <- fmt.Sprintf("expected %v or server unavailable, got %v", context.Canceled, err)
-		} else {
-			errMsgCh <- ""
+			t.Fatalf("expected %v or server unavailable, got %v", context.Canceled, err)
 		}
+		close(donec)
 	}()
 	select {
 	case <-time.After(integration.RequestWaitTimeout):
 		t.Fatal("le.Revoke took too long")
-	case errMsg := <-errMsgCh:
-		if errMsg != "" {
-			t.Fatalf(errMsg)
-		}
+	case <-donec:
 	}
 }
 

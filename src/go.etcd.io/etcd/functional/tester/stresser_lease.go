@@ -22,9 +22,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"go.etcd.io/etcd/v3/clientv3"
-	"go.etcd.io/etcd/v3/etcdserver/api/v3rpc/rpctypes"
-	"go.etcd.io/etcd/v3/functional/rpcpb"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
+	"go.etcd.io/etcd/functional/rpcpb"
 
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
@@ -62,7 +62,7 @@ type leaseStresser struct {
 
 type atomicLeases struct {
 	// rwLock is used to protect read/write access of leases map
-	// which are accessed and modified by different goroutines.
+	// which are accessed and modified by different go routines.
 	rwLock sync.RWMutex
 	leases map[int64]time.Time
 }
@@ -217,7 +217,7 @@ func (ls *leaseStresser) createAliveLeases() {
 				return
 			}
 			ls.aliveLeases.add(leaseID, time.Now())
-			// keep track of all the keep lease alive goroutines
+			// keep track of all the keep lease alive go routines
 			ls.aliveWg.Add(1)
 			go ls.keepLeaseAlive(leaseID)
 		}()
@@ -226,7 +226,7 @@ func (ls *leaseStresser) createAliveLeases() {
 }
 
 func (ls *leaseStresser) createShortLivedLeases() {
-	// one round of createLeases() might not create all the short lived leases we want due to failures.
+	// one round of createLeases() might not create all the short lived leases we want due to falures.
 	// thus, we want to create remaining short lived leases in the future round.
 	neededLeases := ls.numLeases - len(ls.shortLivedLeases.getLeasesMap())
 	var wg sync.WaitGroup
@@ -328,10 +328,10 @@ func (ls *leaseStresser) keepLeaseAlive(leaseID int64) {
 				zap.Error(ls.ctx.Err()),
 			)
 			// it is  possible that lease expires at invariant checking phase but not at keepLeaseAlive() phase.
-			// this scenario is possible when alive lease is just about to expire when keepLeaseAlive() exists and expires at invariant checking phase.
-			// to circumvent that scenario, we check each lease before keepalive loop exist to see if it has been renewed in last TTL/2 duration.
-			// if it is renewed, this means that invariant checking have at least ttl/2 time before lease expires which is long enough for the checking to finish.
-			// if it is not renewed, we remove the lease from the alive map so that the lease doesn't expire during invariant checking
+			// this scenerio is possible when alive lease is just about to expire when keepLeaseAlive() exists and expires at invariant checking phase.
+			// to circumvent that scenerio, we check each lease before keepalive loop exist to see if it has been renewed in last TTL/2 duration.
+			// if it is renewed, this means that invariant checking have at least ttl/2 time before lease exipres which is long enough for the checking to finish.
+			// if it is not renewed, we remove the lease from the alive map so that the lease doesn't exipre during invariant checking
 			renewTime, ok := ls.aliveLeases.read(leaseID)
 			if ok && renewTime.Add(defaultTTL/2*time.Second).Before(time.Now()) {
 				ls.aliveLeases.remove(leaseID)

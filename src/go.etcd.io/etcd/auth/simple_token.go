@@ -129,11 +129,15 @@ func (t *tokenSimple) assignSimpleTokenToUser(username, token string) {
 
 	_, ok := t.simpleTokens[token]
 	if ok {
-		t.lg.Panic(
-			"failed to assign already-used simple token to a user",
-			zap.String("user-name", username),
-			zap.String("token", token),
-		)
+		if t.lg != nil {
+			t.lg.Panic(
+				"failed to assign already-used simple token to a user",
+				zap.String("user-name", username),
+				zap.String("token", token),
+			)
+		} else {
+			plog.Panicf("token %s is already used", token)
+		}
 	}
 
 	t.simpleTokens[token] = username
@@ -161,11 +165,15 @@ func (t *tokenSimple) enable() {
 
 	delf := func(tk string) {
 		if username, ok := t.simpleTokens[tk]; ok {
-			t.lg.Info(
-				"deleted a simple token",
-				zap.String("user-name", username),
-				zap.String("token", tk),
-			)
+			if t.lg != nil {
+				t.lg.Info(
+					"deleted a simple token",
+					zap.String("user-name", username),
+					zap.String("token", tk),
+				)
+			} else {
+				plog.Infof("deleting token %s for user %s", tk, username)
+			}
 			delete(t.simpleTokens, tk)
 		}
 	}
@@ -219,7 +227,7 @@ func (t *tokenSimple) isValidSimpleToken(ctx context.Context, token string) bool
 	if len(splitted) != 2 {
 		return false
 	}
-	index, err := strconv.ParseUint(splitted[1], 10, 0)
+	index, err := strconv.Atoi(splitted[1])
 	if err != nil {
 		return false
 	}

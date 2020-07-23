@@ -17,20 +17,17 @@ package integration
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/v3/clientv3"
-	"go.etcd.io/etcd/v3/etcdserver/api/v3rpc/rpctypes"
-	"go.etcd.io/etcd/v3/integration"
-	"go.etcd.io/etcd/v3/mvcc/mvccpb"
-	"go.etcd.io/etcd/v3/pkg/testutil"
-	"go.etcd.io/etcd/v3/version"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
+	"go.etcd.io/etcd/integration"
+	"go.etcd.io/etcd/mvcc/mvccpb"
+	"go.etcd.io/etcd/pkg/testutil"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -209,22 +206,6 @@ func TestKVPutWithRequireLeader(t *testing.T) {
 	_, err := kv.Put(clientv3.WithRequireLeader(context.Background()), "foo", "bar")
 	if err != rpctypes.ErrNoLeader {
 		t.Fatal(err)
-	}
-
-	cnt, err := clus.Members[0].Metric(
-		"etcd_server_client_requests_total",
-		`type="unary"`,
-		fmt.Sprintf(`client_api_version="%v"`, version.APIVersion),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cv, err := strconv.ParseInt(cnt, 10, 32)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cv < 1 { // >1 when retried
-		t.Fatalf("expected at least 1, got %q", cnt)
 	}
 
 	// clients may give timeout errors since the members are stopped; take
@@ -684,22 +665,11 @@ func TestKVCompact(t *testing.T) {
 
 	wchan := wcli.Watch(ctx, "foo", clientv3.WithRev(3))
 
-	wr := <-wchan
-	if wr.CompactRevision != 7 {
+	if wr := <-wchan; wr.CompactRevision != 7 {
 		t.Fatalf("wchan CompactRevision got %v, want 7", wr.CompactRevision)
 	}
-	if !wr.Canceled {
-		t.Fatalf("expected canceled watcher on compacted revision, got %v", wr.Canceled)
-	}
-	if wr.Err() != rpctypes.ErrCompacted {
-		t.Fatalf("watch response error expected %v, got %v", rpctypes.ErrCompacted, wr.Err())
-	}
-	wr, ok := <-wchan
-	if ok {
+	if wr, ok := <-wchan; ok {
 		t.Fatalf("wchan got %v, expected closed", wr)
-	}
-	if wr.Err() != nil {
-		t.Fatalf("watch response error expected nil, got %v", wr.Err())
 	}
 
 	_, err = kv.Compact(ctx, 1000)
@@ -729,7 +699,7 @@ func TestKVGetRetry(t *testing.T) {
 
 	clus.Members[fIdx].Stop(t)
 
-	donec := make(chan struct{}, 1)
+	donec := make(chan struct{})
 	go func() {
 		// Get will fail, but reconnect will trigger
 		gresp, gerr := kv.Get(ctx, "foo")
@@ -923,7 +893,7 @@ func TestKVLargeRequests(t *testing.T) {
 		expectError error
 	}{
 		{
-			maxRequestBytesServer:  256,
+			maxRequestBytesServer:  1,
 			maxCallSendBytesClient: 0,
 			maxCallRecvBytesClient: 0,
 			valueSize:              1024,

@@ -19,9 +19,9 @@ import (
 	"fmt"
 	"strings"
 
-	v3 "go.etcd.io/etcd/v3/clientv3"
-	"go.etcd.io/etcd/v3/clientv3/snapshot"
-	pb "go.etcd.io/etcd/v3/etcdserver/etcdserverpb"
+	v3 "go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/clientv3/snapshot"
+	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
 
 	"github.com/dustin/go-humanize"
 )
@@ -67,8 +67,6 @@ type printer interface {
 	UserGrantRole(user string, role string, r v3.AuthUserGrantRoleResponse)
 	UserRevokeRole(user string, role string, r v3.AuthUserRevokeRoleResponse)
 	UserDelete(user string, r v3.AuthUserDeleteResponse)
-
-	AuthStatus(r v3.AuthStatusResponse)
 }
 
 func NewPrinter(printerType string, isHex bool) printer {
@@ -78,7 +76,7 @@ func NewPrinter(printerType string, isHex bool) printer {
 	case "fields":
 		return &fieldsPrinter{newPrinterUnsupported("fields")}
 	case "json":
-		return newJSONPrinter(isHex)
+		return newJSONPrinter()
 	case "protobuf":
 		return newPBPrinter()
 	case "table":
@@ -142,9 +140,6 @@ func (p *printerRPC) UserRevokeRole(_ string, _ string, r v3.AuthUserRevokeRoleR
 }
 func (p *printerRPC) UserDelete(_ string, r v3.AuthUserDeleteResponse) {
 	p.p((*pb.AuthUserDeleteResponse)(&r))
-}
-func (p *printerRPC) AuthStatus(r v3.AuthStatusResponse) {
-	p.p((*pb.AuthStatusResponse)(&r))
 }
 
 type printerUnsupported struct{ printerRPC }

@@ -29,7 +29,7 @@ import (
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/v3/pkg/transport"
+	"go.etcd.io/etcd/pkg/transport"
 
 	"go.uber.org/zap"
 )
@@ -94,7 +94,7 @@ func testServer(t *testing.T, scheme string, secure bool, delayTx bool) {
 		}
 	}()
 
-	recvc := make(chan []byte, 1)
+	recvc := make(chan []byte)
 	go func() {
 		for i := 0; i < 2; i++ {
 			recvc <- receive(t, ln)
@@ -247,7 +247,7 @@ func TestServer_PauseTx(t *testing.T) {
 	data := []byte("Hello World!")
 	send(t, data, scheme, srcAddr, transport.TLSInfo{})
 
-	recvc := make(chan []byte, 1)
+	recvc := make(chan []byte)
 	go func() {
 		recvc <- receive(t, ln)
 	}()
@@ -364,7 +364,7 @@ func TestServer_BlackholeTx(t *testing.T) {
 	data := []byte("Hello World!")
 	send(t, data, scheme, srcAddr, transport.TLSInfo{})
 
-	recvc := make(chan []byte, 1)
+	recvc := make(chan []byte)
 	go func() {
 		recvc <- receive(t, ln)
 	}()

@@ -19,7 +19,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"go.etcd.io/etcd/v3/clientv3"
+	"go.etcd.io/etcd/clientv3"
 )
 
 var (
@@ -31,7 +31,6 @@ var (
 	getFromKey     bool
 	getRev         int64
 	getKeysOnly    bool
-	getCountOnly   bool
 	printValueOnly bool
 )
 
@@ -51,7 +50,6 @@ func NewGetCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&getFromKey, "from-key", false, "Get keys that are greater than or equal to the given key using byte compare")
 	cmd.Flags().Int64Var(&getRev, "rev", 0, "Specify the kv revision")
 	cmd.Flags().BoolVar(&getKeysOnly, "keys-only", false, "Get only the keys")
-	cmd.Flags().BoolVar(&getCountOnly, "count-only", false, "Get only the count")
 	cmd.Flags().BoolVar(&printValueOnly, "print-value-only", false, `Only write values when using the "simple" output format`)
 	return cmd
 }
@@ -64,12 +62,6 @@ func getCommandFunc(cmd *cobra.Command, args []string) {
 	cancel()
 	if err != nil {
 		ExitWithError(ExitError, err)
-	}
-
-	if getCountOnly {
-		if _, fields := display.(*fieldsPrinter); !fields {
-			ExitWithError(ExitBadArgs, fmt.Errorf("--count-only is only for `--write-out=fields`"))
-		}
 	}
 
 	if printValueOnly {
@@ -89,10 +81,6 @@ func getGetOp(args []string) (string, []clientv3.OpOption) {
 
 	if getPrefix && getFromKey {
 		ExitWithError(ExitBadArgs, fmt.Errorf("`--prefix` and `--from-key` cannot be set at the same time, choose one"))
-	}
-
-	if getKeysOnly && getCountOnly {
-		ExitWithError(ExitBadArgs, fmt.Errorf("`--keys-only` and `--count-only` cannot be set at the same time, choose one"))
 	}
 
 	opts := []clientv3.OpOption{}
@@ -169,10 +157,6 @@ func getGetOp(args []string) (string, []clientv3.OpOption) {
 
 	if getKeysOnly {
 		opts = append(opts, clientv3.WithKeysOnly())
-	}
-
-	if getCountOnly {
-		opts = append(opts, clientv3.WithCountOnly())
 	}
 
 	return key, opts

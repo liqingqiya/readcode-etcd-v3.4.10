@@ -28,31 +28,26 @@ import (
 	"strings"
 	"time"
 
-	"go.etcd.io/etcd/v3/etcdserver/api/snap"
-	"go.etcd.io/etcd/v3/etcdserver/etcdserverpb"
-	"go.etcd.io/etcd/v3/pkg/pbutil"
-	"go.etcd.io/etcd/v3/pkg/types"
-	"go.etcd.io/etcd/v3/raft/raftpb"
-	"go.etcd.io/etcd/v3/wal"
-	"go.etcd.io/etcd/v3/wal/walpb"
+	"go.etcd.io/etcd/etcdserver/api/snap"
+	"go.etcd.io/etcd/etcdserver/etcdserverpb"
+	"go.etcd.io/etcd/pkg/pbutil"
+	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/wal"
+	"go.etcd.io/etcd/wal/walpb"
 	"go.uber.org/zap"
-)
-
-const (
-	defaultEntryTypes string = "Normal,ConfigChange"
 )
 
 func main() {
 	snapfile := flag.String("start-snap", "", "The base name of snapshot file to start dumping")
 	index := flag.Uint64("start-index", 0, "The index to start dumping")
-	// Default entry types are Normal and ConfigChange
-	entrytype := flag.String("entry-type", defaultEntryTypes, `If set, filters output by entry type. Must be one or more than one of:
-ConfigChange, Normal, Request, InternalRaftRequest,
-IRRRange, IRRPut, IRRDeleteRange, IRRTxn,
-IRRCompaction, IRRLeaseGrant, IRRLeaseRevoke, IRRLeaseCheckpoint`)
+	entrytype := flag.String("entry-type", "", `If set, filters output by entry type. Must be one or more than one of:
+	ConfigChange, Normal, Request, InternalRaftRequest,
+	IRRRange, IRRPut, IRRDeleteRange, IRRTxn,
+	IRRCompaction, IRRLeaseGrant, IRRLeaseRevoke, IRRLeaseCheckpoint`)
 	streamdecoder := flag.String("stream-decoder", "", `The name of an executable decoding tool, the executable must process
-hex encoded lines of binary input (from etcd-dump-logs)
-and output a hex encoded line of binary for each input line`)
+	hex encoded lines of binary input (from etcd-dump-logs)
+	and output a hex encoded line of binary for each input line`)
 
 	flag.Parse()
 
@@ -95,7 +90,7 @@ and output a hex encoded line of binary for each input line`)
 		default:
 			log.Fatalf("Failed loading snapshot: %v", err)
 		}
-		fmt.Println("Start dumping log entries from snapshot.")
+		fmt.Println("Start dupmping log entries from snapshot.")
 	}
 
 	w, err := wal.OpenForRead(zap.NewExample(), walDir(dataDir), walsnap)
@@ -284,6 +279,12 @@ func evaluateEntrytypeFlag(entrytype string) []EntryFilter {
 		"IRRLeaseCheckpoint":  {passIRRLeaseCheckpoint},
 	}
 	filters := make([]EntryFilter, 0)
+	if len(entrytypelist) == 0 {
+		filters = append(filters, passInternalRaftRequest)
+		filters = append(filters, passRequest)
+		filters = append(filters, passUnknownNormal)
+		filters = append(filters, passConfChange)
+	}
 	for _, et := range entrytypelist {
 		if f, ok := validRequest[et]; ok {
 			filters = append(filters, f...)
@@ -372,7 +373,7 @@ func listEntriesType(entrytype string, streamdecoder string, ents []raftpb.Entry
 		}
 	}
 
-	fmt.Printf("\nEntry types (%s) count is : %d\n", entrytype, cnt)
+	fmt.Printf("\nEntry types (%s) count is : %d", entrytype, cnt)
 }
 
 func parseDecoderOutput(decoderoutput string) (string, string) {

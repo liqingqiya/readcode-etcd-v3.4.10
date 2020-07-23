@@ -49,7 +49,6 @@ func (c JointConfig) Describe(l AckedIndexer) string {
 func (c JointConfig) CommittedIndex(l AckedIndexer) Index {
 	idx0 := c[0].CommittedIndex(l)
 	idx1 := c[1].CommittedIndex(l)
-	// 取小的，安全（这里解释了为啥 MajorityConfig.CommittedIndex() 为什么 Peers 数为0的时候返回无穷大，如果返回0，这里就有问题了）
 	if idx0 < idx1 {
 		return idx0
 	}

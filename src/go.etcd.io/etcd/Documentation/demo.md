@@ -1,17 +1,16 @@
 ---
 title: Demo
-weight: 1
 ---
 
 This series of examples shows the basic procedures for working with an etcd cluster.
 
 ## Set up a cluster
 
-![01_etcd_clustering_2016050601](https://storage.googleapis.com/etcd/demo/01_etcd_clustering_2016051001.gif)
+<img src="https://storage.googleapis.com/etcd/demo/01_etcd_clustering_2016051001.gif" alt="01_etcd_clustering_2016050601"/>
 
 On each etcd node, specify the cluster members:
 
-```shell
+```
 TOKEN=token-01
 CLUSTER_STATE=new
 NAME_1=machine-1
@@ -25,7 +24,7 @@ CLUSTER=${NAME_1}=http://${HOST_1}:2380,${NAME_2}=http://${HOST_2}:2380,${NAME_3
 
 Run this on each machine:
 
-```shell
+```
 # For machine 1
 THIS_NAME=${NAME_1}
 THIS_IP=${HOST_1}
@@ -56,7 +55,7 @@ etcd --data-dir=data.etcd --name ${THIS_NAME} \
 
 Or use our public discovery service:
 
-```shell
+```
 curl https://discovery.etcd.io/new?size=3
 https://discovery.etcd.io/a81b5818e67a6ea83e9d4daea5ecbc92
 
@@ -98,7 +97,7 @@ etcd --data-dir=data.etcd --name ${THIS_NAME} \
 
 Now etcd is ready! To connect to etcd with etcdctl:
 
-```shell
+```
 export ETCDCTL_API=3
 HOST_1=10.240.0.17
 HOST_2=10.240.0.18
@@ -111,17 +110,17 @@ etcdctl --endpoints=$ENDPOINTS member list
 
 ## Access etcd
 
-![02_etcdctl_access_etcd_2016051001](https://storage.googleapis.com/etcd/demo/02_etcdctl_access_etcd_2016051001.gif)
+<img src="https://storage.googleapis.com/etcd/demo/02_etcdctl_access_etcd_2016051001.gif" alt="02_etcdctl_access_etcd_2016051001"/>
 
 `put` command to write:
 
-```shell
+```
 etcdctl --endpoints=$ENDPOINTS put foo "Hello World!"
 ```
 
 `get` to read from etcd:
 
-```shell
+```
 etcdctl --endpoints=$ENDPOINTS get foo
 etcdctl --endpoints=$ENDPOINTS --write-out="json" get foo
 ```
@@ -129,9 +128,9 @@ etcdctl --endpoints=$ENDPOINTS --write-out="json" get foo
 
 ## Get by prefix
 
-![03_etcdctl_get_by_prefix_2016050501](https://storage.googleapis.com/etcd/demo/03_etcdctl_get_by_prefix_2016050501.gif)
+<img src="https://storage.googleapis.com/etcd/demo/03_etcdctl_get_by_prefix_2016050501.gif" alt="03_etcdctl_get_by_prefix_2016050501"/>
 
-```shell
+```
 etcdctl --endpoints=$ENDPOINTS put web1 value1
 etcdctl --endpoints=$ENDPOINTS put web2 value2
 etcdctl --endpoints=$ENDPOINTS put web3 value3
@@ -142,9 +141,9 @@ etcdctl --endpoints=$ENDPOINTS get web --prefix
 
 ## Delete
 
-![04_etcdctl_delete_2016050601](https://storage.googleapis.com/etcd/demo/04_etcdctl_delete_2016050601.gif)
+<img src="https://storage.googleapis.com/etcd/demo/04_etcdctl_delete_2016050601.gif" alt="04_etcdctl_delete_2016050601"/>
 
-```shell
+```
 etcdctl --endpoints=$ENDPOINTS put key myvalue
 etcdctl --endpoints=$ENDPOINTS del key
 
@@ -158,9 +157,9 @@ etcdctl --endpoints=$ENDPOINTS del k --prefix
 
 `txn` to wrap multiple requests into one transaction:
 
-![05_etcdctl_transaction_2016050501](https://storage.googleapis.com/etcd/demo/05_etcdctl_transaction_2016050501.gif)
+<img src="https://storage.googleapis.com/etcd/demo/05_etcdctl_transaction_2016050501.gif" alt="05_etcdctl_transaction_2016050501"/>
 
-```shell
+```
 etcdctl --endpoints=$ENDPOINTS put user1 bad
 etcdctl --endpoints=$ENDPOINTS txn --interactive
 
@@ -179,9 +178,9 @@ put user1 good
 
 `watch` to get notified of future changes:
 
-![06_etcdctl_watch_2016050501](https://storage.googleapis.com/etcd/demo/06_etcdctl_watch_2016050501.gif)
+<img src="https://storage.googleapis.com/etcd/demo/06_etcdctl_watch_2016050501.gif" alt="06_etcdctl_watch_2016050501"/>
 
-```shell
+```
 etcdctl --endpoints=$ENDPOINTS watch stock1
 etcdctl --endpoints=$ENDPOINTS put stock1 1000
 
@@ -195,10 +194,9 @@ etcdctl --endpoints=$ENDPOINTS put stock2 20
 
 `lease` to write with TTL:
 
+<img src="https://storage.googleapis.com/etcd/demo/07_etcdctl_lease_2016050501.gif" alt="07_etcdctl_lease_2016050501"/>
 
-![07_etcdctl_lease_2016050501](https://storage.googleapis.com/etcd/demo/07_etcdctl_lease_2016050501.gif)
-
-```shell
+```
 etcdctl --endpoints=$ENDPOINTS lease grant 300
 # lease 2be7547fbc6a5afa granted with TTL(300s)
 
@@ -216,9 +214,9 @@ etcdctl --endpoints=$ENDPOINTS get sample
 
 `lock` for distributed lock:
 
-![08_etcdctl_lock_2016050501](https://storage.googleapis.com/etcd/demo/08_etcdctl_lock_2016050501.gif)
+<img src="https://storage.googleapis.com/etcd/demo/08_etcdctl_lock_2016050501.gif" alt="08_etcdctl_lock_2016050501"/>
 
-```shell
+```
 etcdctl --endpoints=$ENDPOINTS lock mutex1
 
 # another client with the same name blocks
@@ -230,9 +228,9 @@ etcdctl --endpoints=$ENDPOINTS lock mutex1
 
 `elect` for leader election:
 
-![09_etcdctl_elect_2016050501](https://storage.googleapis.com/etcd/demo/09_etcdctl_elect_2016050501.gif)
+<img src="https://storage.googleapis.com/etcd/demo/09_etcdctl_elect_2016050501.gif" alt="09_etcdctl_elect_2016050501"/>
 
-```shell
+```
 etcdctl --endpoints=$ENDPOINTS elect one p1
 
 # another client with the same name blocks
@@ -244,9 +242,9 @@ etcdctl --endpoints=$ENDPOINTS elect one p2
 
 Specify the initial cluster configuration for each machine:
 
-![10_etcdctl_endpoint_2016050501](https://storage.googleapis.com/etcd/demo/10_etcdctl_endpoint_2016050501.gif)
+<img src="https://storage.googleapis.com/etcd/demo/10_etcdctl_endpoint_2016050501.gif" alt="10_etcdctl_endpoint_2016050501"/>
 
-```shell
+```
 etcdctl --write-out=table --endpoints=$ENDPOINTS endpoint status
 
 +------------------+------------------+---------+---------+-----------+-----------+------------+
@@ -258,7 +256,7 @@ etcdctl --write-out=table --endpoints=$ENDPOINTS endpoint status
 +------------------+------------------+---------+---------+-----------+-----------+------------+
 ```
 
-```shell
+```
 etcdctl --endpoints=$ENDPOINTS endpoint health
 
 10.240.0.17:2379 is healthy: successfully committed proposal: took = 3.345431ms
@@ -271,18 +269,18 @@ etcdctl --endpoints=$ENDPOINTS endpoint health
 
 `snapshot` to save point-in-time snapshot of etcd database:
 
-![11_etcdctl_snapshot_2016051001](https://storage.googleapis.com/etcd/demo/11_etcdctl_snapshot_2016051001.gif)
+<img src="https://storage.googleapis.com/etcd/demo/11_etcdctl_snapshot_2016051001.gif" alt="11_etcdctl_snapshot_2016051001"/>
 
 Snapshot can only be requested from one etcd node, so `--endpoints` flag should contain only one endpoint.
 
-```shell
+```
 ENDPOINTS=$HOST_1:2379
 etcdctl --endpoints=$ENDPOINTS snapshot save my.db
 
 Snapshot saved at my.db
 ```
 
-```shell
+```
 etcdctl --write-out=table --endpoints=$ENDPOINTS snapshot status my.db
 
 +---------+----------+------------+------------+
@@ -297,10 +295,9 @@ etcdctl --write-out=table --endpoints=$ENDPOINTS snapshot status my.db
 
 `migrate` to transform etcd v2 to v3 data:
 
-![12_etcdctl_migrate_2016061602](https://storage.googleapis.com/etcd/demo/12_etcdctl_migrate_2016061602.gif)
+<img src="https://storage.googleapis.com/etcd/demo/12_etcdctl_migrate_2016061602.gif" alt="12_etcdctl_migrate_2016061602"/>
 
-
-```shell
+```
 # write key in etcd version 2 store
 export ETCDCTL_API=2
 etcdctl --endpoints=http://$ENDPOINT set foo bar
@@ -325,9 +322,9 @@ etcdctl --endpoints=$ENDPOINTS get /foo
 
 `member` to add,remove,update membership:
 
-![13_etcdctl_member_2016062301](https://storage.googleapis.com/etcd/demo/13_etcdctl_member_2016062301.gif)
+<img src="https://storage.googleapis.com/etcd/demo/13_etcdctl_member_2016062301.gif" alt="13_etcdctl_member_2016062301"/>
 
-```shell
+```
 # For each machine
 TOKEN=my-etcd-token-1
 CLUSTER_STATE=new
@@ -378,7 +375,7 @@ etcd --data-dir=data.etcd --name ${THIS_NAME} \
 
 Then replace a member with `member remove` and `member add` commands:
 
-```shell
+```
 # get member ID
 export ETCDCTL_API=3
 HOST_1=10.240.0.13
@@ -406,7 +403,7 @@ etcdctl --endpoints=${HOST_1}:2379,${HOST_2}:2379 \
 
 Next, start the new member with `--initial-cluster-state existing` flag:
 
-```shell
+```
 # [WARNING] If the new member starts from the same disk space,
 # make sure to remove the data directory of the old member
 #
@@ -438,9 +435,9 @@ etcd --data-dir=data.etcd --name ${THIS_NAME} \
 
 `auth`,`user`,`role` for authentication:
 
-![14_etcdctl_auth_2016062301](https://storage.googleapis.com/etcd/demo/14_etcdctl_auth_2016062301.gif)
+<img src="https://storage.googleapis.com/etcd/demo/14_etcdctl_auth_2016062301.gif" alt="14_etcdctl_auth_2016062301"/>
 
-```shell
+```
 export ETCDCTL_API=3
 ENDPOINTS=localhost:2379
 

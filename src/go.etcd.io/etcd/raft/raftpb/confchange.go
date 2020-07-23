@@ -73,20 +73,15 @@ func (c ConfChangeV2) AsV1() (ConfChange, bool) { return ConfChange{}, false }
 // than one change or if the use of Joint Consensus was requested explicitly.
 // The first bool can only be true if second one is, and indicates whether the
 // Joint State will be left automatically.
-// 判断是否进入 joint consensus 配置变更阶段
-func (c ConfChangeV2) EnterJoint() (autoLeave bool, ok bool) {
+func (c *ConfChangeV2) EnterJoint() (autoLeave bool, ok bool) {
 	// NB: in theory, more config changes could qualify for the "simple"
 	// protocol but it depends on the config on top of which the changes apply.
 	// For example, adding two learners is not OK if both nodes are part of the
 	// base config (i.e. two voters are turned into learners in the process of
 	// applying the conf change). In practice, these distinctions should not
 	// matter, so we keep it simple and use Joint Consensus liberally.
-
-	// 如果 len(c.Changes) 不大于 1，那么说明不是批量变更，这种单节点的变更不会出现问题，
-	// 就不用走 joint consensus 算法变更了，保持简单处理；
 	if c.Transition != ConfChangeTransitionAuto || len(c.Changes) > 1 {
 		// Use Joint Consensus.
-		// joint consensue 算法
 		var autoLeave bool
 		switch c.Transition {
 		case ConfChangeTransitionAuto:
@@ -102,14 +97,13 @@ func (c ConfChangeV2) EnterJoint() (autoLeave bool, ok bool) {
 	return false, false
 }
 
-// 如果 c 是空的，那么说明是 leave joint 的场景
 // LeaveJoint is true if the configuration change leaves a joint configuration.
 // This is the case if the ConfChangeV2 is zero, with the possible exception of
 // the Context field.
-func (c ConfChangeV2) LeaveJoint() bool {
-	// NB: c is already a copy.
-	c.Context = nil
-	return proto.Equal(&c, &ConfChangeV2{})
+func (c *ConfChangeV2) LeaveJoint() bool {
+	cpy := *c
+	cpy.Context = nil
+	return proto.Equal(&cpy, &ConfChangeV2{})
 }
 
 // ConfChangesFromString parses a Space-delimited sequence of operations into a

@@ -20,8 +20,6 @@ import (
 	"sort"
 	"testing"
 	"time"
-
-	"go.uber.org/zap"
 )
 
 func TestNewDirectorScheme(t *testing.T) {
@@ -55,7 +53,7 @@ func TestNewDirectorScheme(t *testing.T) {
 		uf := func() []string {
 			return tt.urls
 		}
-		got := newDirector(zap.NewExample(), uf, time.Minute, time.Minute)
+		got := newDirector(uf, time.Minute, time.Minute)
 
 		var gep []string
 		for _, ep := range got.ep {

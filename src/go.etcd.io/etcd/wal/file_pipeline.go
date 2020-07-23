@@ -19,7 +19,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.etcd.io/etcd/v3/pkg/fileutil"
+	"go.etcd.io/etcd/pkg/fileutil"
 
 	"go.uber.org/zap"
 )
@@ -41,9 +41,6 @@ type filePipeline struct {
 }
 
 func newFilePipeline(lg *zap.Logger, dir string, fileSize int64) *filePipeline {
-	if lg == nil {
-		lg = zap.NewNop()
-	}
 	fp := &filePipeline{
 		lg:    lg,
 		dir:   dir,
@@ -56,7 +53,6 @@ func newFilePipeline(lg *zap.Logger, dir string, fileSize int64) *filePipeline {
 	return fp
 }
 
-// open 一个文件, 这些文件都是预创建的
 // Open returns a fresh file for writing. Rename the file before calling
 // Open again or there will be file collisions.
 func (fp *filePipeline) Open() (f *fileutil.LockedFile, err error) {
@@ -78,9 +74,12 @@ func (fp *filePipeline) alloc() (f *fileutil.LockedFile, err error) {
 	if f, err = fileutil.LockFile(fpath, os.O_CREATE|os.O_WRONLY, fileutil.PrivateFileMode); err != nil {
 		return nil, err
 	}
-	// 预分配文件
 	if err = fileutil.Preallocate(f.File, fp.size, true); err != nil {
-		fp.lg.Error("failed to preallocate space when creating a new WAL", zap.Int64("size", fp.size), zap.Error(err))
+		if fp.lg != nil {
+			fp.lg.Warn("failed to preallocate space when creating a new WAL", zap.Int64("size", fp.size), zap.Error(err))
+		} else {
+			plog.Errorf("failed to allocate space when creating new wal file (%v)", err)
+		}
 		f.Close()
 		return nil, err
 	}
@@ -91,14 +90,13 @@ func (fp *filePipeline) alloc() (f *fileutil.LockedFile, err error) {
 func (fp *filePipeline) run() {
 	defer close(fp.errc)
 	for {
-		// 预分配一个文件
 		f, err := fp.alloc()
 		if err != nil {
 			fp.errc <- err
 			return
 		}
 		select {
-		case fp.filec <- f: // 等待消费者从队列中取出一个预创建出的文件
+		case fp.filec <- f:
 		case <-fp.donec:
 			os.Remove(f.Name())
 			f.Close()

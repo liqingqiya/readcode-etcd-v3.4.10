@@ -21,11 +21,11 @@ import (
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/v3/lease"
-	"go.etcd.io/etcd/v3/mvcc/backend"
-	"go.etcd.io/etcd/v3/mvcc/mvccpb"
-	"go.etcd.io/etcd/v3/pkg/testutil"
-	"go.etcd.io/etcd/v3/pkg/traceutil"
+	"go.etcd.io/etcd/lease"
+	"go.etcd.io/etcd/mvcc/backend"
+	"go.etcd.io/etcd/mvcc/mvccpb"
+	"go.etcd.io/etcd/pkg/testutil"
+	"go.etcd.io/etcd/pkg/traceutil"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -242,12 +242,8 @@ func testKVRangeLimit(t *testing.T, f rangeFunc) {
 		if r.Rev != wrev {
 			t.Errorf("#%d: rev = %d, want %d", i, r.Rev, wrev)
 		}
-		if tt.limit <= 0 || int(tt.limit) > len(kvs) {
-			if r.Count != len(kvs) {
-				t.Errorf("#%d: count = %d, want %d", i, r.Count, len(kvs))
-			}
-		} else if r.Count != int(tt.limit) {
-			t.Errorf("#%d: count = %d, want %d", i, r.Count, tt.limit)
+		if r.Count != len(kvs) {
+			t.Errorf("#%d: count = %d, want %d", i, r.Count, len(kvs))
 		}
 	}
 }
@@ -414,11 +410,10 @@ func TestKVTxnBlockWriteOperations(t *testing.T) {
 		func() { s.DeleteRange([]byte("foo"), nil) },
 	}
 	for i, tt := range tests {
-		tf := tt
 		txn := s.Write(traceutil.TODO())
 		done := make(chan struct{}, 1)
 		go func() {
-			tf()
+			tt()
 			done <- struct{}{}
 		}()
 		select {
@@ -717,7 +712,7 @@ func TestKVSnapshot(t *testing.T) {
 
 func TestWatchableKVWatch(t *testing.T) {
 	b, tmpPath := backend.NewDefaultTmpBackend()
-	s := WatchableKV(newWatchableStore(zap.NewExample(), b, &lease.FakeLessor{}, nil, StoreConfig{}))
+	s := WatchableKV(newWatchableStore(zap.NewExample(), b, &lease.FakeLessor{}, nil, nil, StoreConfig{}))
 	defer cleanup(s, b, tmpPath)
 
 	w := s.NewWatchStream()

@@ -20,12 +20,16 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/coreos/pkg/capnslog"
 )
 
 const (
 	// PrivateFileMode grants owner to read/write a file.
 	PrivateFileMode = 0600
 )
+
+var plog = capnslog.NewPackageLogger("go.etcd.io/etcd", "pkg/fileutil")
 
 // IsDirWriteable checks if dir is writable by writing and removing a file
 // to dir. It returns nil if dir is writable.
@@ -80,12 +84,6 @@ func CreateDirAll(dir string) error {
 func Exist(name string) bool {
 	_, err := os.Stat(name)
 	return err == nil
-}
-
-// DirEmpty returns true if a directory empty and can access.
-func DirEmpty(name string) bool {
-	ns, err := ReadDir(name)
-	return len(ns) == 0 && err == nil
 }
 
 // ZeroToEnd zeros a file starting from SEEK_CUR to its SEEK_END. May temporarily

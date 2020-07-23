@@ -26,12 +26,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"go.etcd.io/etcd/v3/clientv3/balancer"
-	"go.etcd.io/etcd/v3/clientv3/balancer/picker"
-	"go.etcd.io/etcd/v3/clientv3/balancer/resolver/endpoint"
-	"go.etcd.io/etcd/v3/clientv3/credentials"
-	"go.etcd.io/etcd/v3/etcdserver/api/v3rpc/rpctypes"
-	"go.etcd.io/etcd/v3/pkg/logutil"
+	"go.etcd.io/etcd/clientv3/balancer"
+	"go.etcd.io/etcd/clientv3/balancer/picker"
+	"go.etcd.io/etcd/clientv3/balancer/resolver/endpoint"
+	"go.etcd.io/etcd/clientv3/credentials"
+	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
+	"go.etcd.io/etcd/pkg/logutil"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -232,6 +232,10 @@ func (c *Client) dialSetupOpts(creds grpccredentials.TransportCredentials, dopts
 	dialer := endpoint.Dialer
 	if creds != nil {
 		opts = append(opts, grpc.WithTransportCredentials(creds))
+		// gRPC load balancer workaround. See credentials.transportCredential for details.
+		if credsDialer, ok := creds.(TransportCredentialsWithDialer); ok {
+			dialer = credsDialer.Dialer
+		}
 	} else {
 		opts = append(opts, grpc.WithInsecure())
 	}
@@ -267,10 +271,10 @@ func (c *Client) Dial(ep string) (*grpc.ClientConn, error) {
 
 func (c *Client) getToken(ctx context.Context) error {
 	var err error // return last error in a case of fail
+	var auth *authenticator
 
 	eps := c.Endpoints()
 	for _, ep := range eps {
-		var auth *authenticator
 		// use dial options without dopts to avoid reusing the client balancer
 		var dOpts []grpc.DialOption
 		_, host, _ := endpoint.ParseEndpoint(ep)
@@ -460,8 +464,7 @@ func newClient(cfg *Config) (*Client, error) {
 	client.resolverGroup.SetEndpoints(cfg.Endpoints)
 
 	if len(cfg.Endpoints) < 1 {
-		client.cancel()
-		return nil, fmt.Errorf("at least one Endpoint is required in client config")
+		return nil, fmt.Errorf("at least one Endpoint must is required in client config")
 	}
 	dialEndpoint := cfg.Endpoints[0]
 
@@ -652,4 +655,10 @@ func IsConnCanceled(err error) bool {
 
 	// <= gRPC v1.7.x returns 'errors.New("grpc: the client connection is closing")'
 	return strings.Contains(err.Error(), "grpc: the client connection is closing")
+}
+
+// TransportCredentialsWithDialer is for a gRPC load balancer workaround. See credentials.transportCredential for details.
+type TransportCredentialsWithDialer interface {
+	grpccredentials.TransportCredentials
+	Dialer(ctx context.Context, dialEp string) (net.Conn, error)
 }

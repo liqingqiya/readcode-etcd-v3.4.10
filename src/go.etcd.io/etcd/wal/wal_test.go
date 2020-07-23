@@ -27,10 +27,10 @@ import (
 	"regexp"
 	"testing"
 
-	"go.etcd.io/etcd/v3/pkg/fileutil"
-	"go.etcd.io/etcd/v3/pkg/pbutil"
-	"go.etcd.io/etcd/v3/raft/raftpb"
-	"go.etcd.io/etcd/v3/wal/walpb"
+	"go.etcd.io/etcd/pkg/fileutil"
+	"go.etcd.io/etcd/pkg/pbutil"
+	"go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/wal/walpb"
 
 	"go.uber.org/zap"
 )
@@ -980,27 +980,6 @@ func TestRenameFail(t *testing.T) {
 	}
 }
 
-// TestReadAllFail ensure ReadAll error if used without opening the WAL
-func TestReadAllFail(t *testing.T) {
-	dir, err := ioutil.TempDir(os.TempDir(), "waltest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
-	// create initial WAL
-	f, err := Create(zap.NewExample(), dir, []byte("metadata"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	f.Close()
-	// try to read without opening the WAL
-	_, _, _, err = f.ReadAll()
-	if err == nil || err != ErrDecoderNotFound {
-		t.Fatalf("err = %v, want ErrDecoderNotFound", err)
-	}
-}
-
 // TestValidSnapshotEntries ensures ValidSnapshotEntries returns all valid wal snapshot entries, accounting
 // for hardstate
 func TestValidSnapshotEntries(t *testing.T) {
@@ -1017,7 +996,8 @@ func TestValidSnapshotEntries(t *testing.T) {
 	state2 := raftpb.HardState{Commit: 3, Term: 2}
 	snap4 := walpb.Snapshot{Index: 4, Term: 2} // will be orphaned since the last committed entry will be snap3
 	func() {
-		w, err := Create(zap.NewExample(), p, nil)
+		var w *WAL
+		w, err = Create(zap.NewExample(), p, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1043,9 +1023,9 @@ func TestValidSnapshotEntries(t *testing.T) {
 			t.Fatal(err)
 		}
 	}()
-	walSnaps, err := ValidSnapshotEntries(zap.NewExample(), p)
-	if err != nil {
-		t.Fatal(err)
+	walSnaps, serr := ValidSnapshotEntries(zap.NewExample(), p)
+	if serr != nil {
+		t.Fatal(serr)
 	}
 	expected := []walpb.Snapshot{snap0, snap1, snap2, snap3}
 	if !reflect.DeepEqual(walSnaps, expected) {
@@ -1073,9 +1053,9 @@ func TestValidSnapshotEntriesAfterPurgeWal(t *testing.T) {
 	snap3 := walpb.Snapshot{Index: 3, Term: 2}
 	state2 := raftpb.HardState{Commit: 3, Term: 2}
 	func() {
-		w, err := Create(zap.NewExample(), p, nil)
-		if err != nil {
-			t.Fatal(err)
+		w, werr := Create(zap.NewExample(), p, nil)
+		if werr != nil {
+			t.Fatal(werr)
 		}
 		defer w.Close()
 
@@ -1097,15 +1077,35 @@ func TestValidSnapshotEntriesAfterPurgeWal(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-
 	}()
-	files, _, err := selectWALFiles(nil, p, snap0)
-	if err != nil {
-		t.Fatal(err)
+	files, _, ferr := selectWALFiles(nil, p, snap0)
+	if ferr != nil {
+		t.Fatal(ferr)
 	}
 	os.Remove(p + "/" + files[0])
 	_, err = ValidSnapshotEntries(zap.NewExample(), p)
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+// TestReadAllFail ensure ReadAll error if used without opening the WAL
+func TestReadAllFail(t *testing.T) {
+	dir, err := ioutil.TempDir(os.TempDir(), "waltest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	// create initial WAL
+	f, err := Create(zap.NewExample(), dir, []byte("metadata"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	// try to read without opening the WAL
+	_, _, _, err = f.ReadAll()
+	if err == nil || err != ErrDecoderNotFound {
+		t.Fatalf("err = %v, want ErrDecoderNotFound", err)
 	}
 }

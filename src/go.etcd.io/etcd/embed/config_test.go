@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/v3/pkg/transport"
+	"go.etcd.io/etcd/pkg/transport"
 
 	"sigs.k8s.io/yaml"
 )
@@ -159,6 +159,7 @@ func TestAutoCompactionModeInvalid(t *testing.T) {
 	cfg := NewConfig()
 	cfg.Logger = "zap"
 	cfg.LogOutputs = []string{"/dev/null"}
+	cfg.Debug = false
 	cfg.AutoCompactionMode = "period"
 	err := cfg.Validate()
 	if err == nil {

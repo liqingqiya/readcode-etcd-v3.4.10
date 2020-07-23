@@ -21,9 +21,9 @@ import (
 	"sync"
 	"time"
 
-	v3rpc "go.etcd.io/etcd/v3/etcdserver/api/v3rpc/rpctypes"
-	pb "go.etcd.io/etcd/v3/etcdserver/etcdserverpb"
-	"go.etcd.io/etcd/v3/mvcc/mvccpb"
+	v3rpc "go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
+	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
+	mvccpb "go.etcd.io/etcd/mvcc/mvccpb"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -48,8 +48,6 @@ type Watcher interface {
 	// through the returned channel. If revisions waiting to be sent over the
 	// watch are compacted, then the watch will be canceled by the server, the
 	// client will post a compacted error watch response, and the channel will close.
-	// If the requested revision is 0 or unspecified, the returned channel will
-	// return watch events that happen after the server receives the watch request.
 	// If the context "ctx" is canceled or timed out, returned "WatchChan" is closed,
 	// and "WatchResponse" from this closed channel has zero events and nil "Err()".
 	// The context "ctx" MUST be canceled, as soon as watcher is no longer being used,
@@ -139,11 +137,10 @@ type watcher struct {
 	callOpts []grpc.CallOption
 
 	// mu protects the grpc streams map
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	// streams holds all the active grpc streams keyed by ctx value.
 	streams map[string]*watchGrpcStream
-	lg      *zap.Logger
 }
 
 // watchGrpcStream tracks all watch resources attached to a single grpc stream.
@@ -246,7 +243,6 @@ func NewWatchFromWatchClient(wc pb.WatchClient, c *Client) Watcher {
 	}
 	if c != nil {
 		w.callOpts = c.callOpts
-		w.lg = c.lg
 	}
 	return w
 }
@@ -311,63 +307,55 @@ func (w *watcher) Watch(ctx context.Context, key string, opts ...OpOption) Watch
 	ok := false
 	ctxKey := streamKeyFromCtx(ctx)
 
-	var closeCh chan WatchResponse
-	for {
-		// find or allocate appropriate grpc watch stream
-		w.mu.Lock()
-		if w.streams == nil {
-			// closed
-			w.mu.Unlock()
-			ch := make(chan WatchResponse)
-			close(ch)
-			return ch
-		}
-		wgs := w.streams[ctxKey]
-		if wgs == nil {
-			wgs = w.newWatcherGrpcStream(ctx)
-			w.streams[ctxKey] = wgs
-		}
-		donec := wgs.donec
-		reqc := wgs.reqc
+	// find or allocate appropriate grpc watch stream
+	w.mu.Lock()
+	if w.streams == nil {
+		// closed
 		w.mu.Unlock()
+		ch := make(chan WatchResponse)
+		close(ch)
+		return ch
+	}
+	wgs := w.streams[ctxKey]
+	if wgs == nil {
+		wgs = w.newWatcherGrpcStream(ctx)
+		w.streams[ctxKey] = wgs
+	}
+	donec := wgs.donec
+	reqc := wgs.reqc
+	w.mu.Unlock()
 
-		// couldn't create channel; return closed channel
-		if closeCh == nil {
-			closeCh = make(chan WatchResponse, 1)
+	// couldn't create channel; return closed channel
+	closeCh := make(chan WatchResponse, 1)
+
+	// submit request
+	select {
+	case reqc <- wr:
+		ok = true
+	case <-wr.ctx.Done():
+	case <-donec:
+		if wgs.closeErr != nil {
+			closeCh <- WatchResponse{Canceled: true, closeErr: wgs.closeErr}
+			break
 		}
+		// retry; may have dropped stream from no ctxs
+		return w.Watch(ctx, key, opts...)
+	}
 
-		// submit request
+	// receive channel
+	if ok {
 		select {
-		case reqc <- wr:
-			ok = true
-		case <-wr.ctx.Done():
-			ok = false
+		case ret := <-wr.retc:
+			return ret
+		case <-ctx.Done():
 		case <-donec:
-			ok = false
 			if wgs.closeErr != nil {
 				closeCh <- WatchResponse{Canceled: true, closeErr: wgs.closeErr}
 				break
 			}
 			// retry; may have dropped stream from no ctxs
-			continue
+			return w.Watch(ctx, key, opts...)
 		}
-
-		// receive channel
-		if ok {
-			select {
-			case ret := <-wr.retc:
-				return ret
-			case <-ctx.Done():
-			case <-donec:
-				if wgs.closeErr != nil {
-					closeCh <- WatchResponse{Canceled: true, closeErr: wgs.closeErr}
-					break
-				}
-				// retry; may have dropped stream from no ctxs
-				continue
-			}
-		}
-		break
 	}
 
 	close(closeCh)
@@ -415,7 +403,10 @@ func (w *watcher) RequestProgress(ctx context.Context) (err error) {
 	case reqc <- pr:
 		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		if err == nil {
+			return ctx.Err()
+		}
+		return err
 	case <-donec:
 		if wgs.closeErr != nil {
 			return wgs.closeErr
@@ -554,14 +545,10 @@ func (w *watchGrpcStream) run() {
 				w.resuming = append(w.resuming, ws)
 				if len(w.resuming) == 1 {
 					// head of resume queue, can register a new watcher
-					if err := wc.Send(ws.initReq.toPB()); err != nil {
-						lg.Warningf("error when sending request: %v", err)
-					}
+					wc.Send(ws.initReq.toPB())
 				}
 			case *progressRequest:
-				if err := wc.Send(wreq.toPB()); err != nil {
-					lg.Warningf("error when sending request: %v", err)
-				}
+				wc.Send(wreq.toPB())
 			}
 
 		// new events from the watch client
@@ -585,9 +572,7 @@ func (w *watchGrpcStream) run() {
 				}
 
 				if ws := w.nextResume(); ws != nil {
-					if err := wc.Send(ws.initReq.toPB()); err != nil {
-						lg.Warningf("error when sending request: %v", err)
-					}
+					wc.Send(ws.initReq.toPB())
 				}
 
 				// reset for next iteration
@@ -648,9 +633,7 @@ func (w *watchGrpcStream) run() {
 				return
 			}
 			if ws := w.nextResume(); ws != nil {
-				if err := wc.Send(ws.initReq.toPB()); err != nil {
-					lg.Warningf("error when sending request: %v", err)
-				}
+				wc.Send(ws.initReq.toPB())
 			}
 			cancelSet = make(map[int64]struct{})
 
@@ -658,12 +641,6 @@ func (w *watchGrpcStream) run() {
 			return
 
 		case ws := <-w.closingc:
-			w.closeSubstream(ws)
-			delete(closing, ws)
-			// no more watchers on this stream, shutdown, skip cancellation
-			if len(w.substreams)+len(w.resuming) == 0 {
-				return
-			}
 			if ws.id != -1 {
 				// client is closing an established watch; close it on the server proactively instead of waiting
 				// to close when the next message arrives
@@ -678,6 +655,12 @@ func (w *watchGrpcStream) run() {
 				if err := wc.Send(req); err != nil {
 					lg.Warning("failed to send watch cancel request", zap.Int64("watch-id", ws.id), zap.Error(err))
 				}
+			}
+			w.closeSubstream(ws)
+			delete(closing, ws)
+			// no more watchers on this stream, shutdown
+			if len(w.substreams)+len(w.resuming) == 0 {
+				return
 			}
 		}
 	}

@@ -21,7 +21,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.etcd.io/etcd/v3/pkg/testutil"
+	"go.etcd.io/etcd/pkg/testutil"
 )
 
 func TestSRVGetCluster(t *testing.T) {
@@ -185,7 +185,7 @@ func TestSRVDiscover(t *testing.T) {
 			if service == "etcd-client" {
 				return "", tt.withoutSSL, nil
 			}
-			return "", nil, errors.New("unknown service in mock")
+			return "", nil, errors.New("Unknown service in mock")
 		}
 
 		srvs, err := GetClient("etcd-client", "example.com", "")

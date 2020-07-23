@@ -17,12 +17,9 @@ package grpcproxy
 import (
 	"context"
 	"sync"
-	"time"
 
-	"go.etcd.io/etcd/v3/clientv3"
-	pb "go.etcd.io/etcd/v3/etcdserver/etcdserverpb"
-
-	"go.uber.org/zap"
+	"go.etcd.io/etcd/clientv3"
+	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
 )
 
 // watchBroadcast broadcasts a server watcher to many client watchers.
@@ -39,17 +36,15 @@ type watchBroadcast struct {
 	receivers map[*watcher]struct{}
 	// responses counts the number of responses
 	responses int
-	lg        *zap.Logger
 }
 
-func newWatchBroadcast(lg *zap.Logger, wp *watchProxy, w *watcher, update func(*watchBroadcast)) *watchBroadcast {
+func newWatchBroadcast(wp *watchProxy, w *watcher, update func(*watchBroadcast)) *watchBroadcast {
 	cctx, cancel := context.WithCancel(wp.ctx)
 	wb := &watchBroadcast{
 		cancel:    cancel,
 		nextrev:   w.nextrev,
 		receivers: make(map[*watcher]struct{}),
 		donec:     make(chan struct{}),
-		lg:        lg,
 	}
 	wb.add(w)
 	go func() {
@@ -66,7 +61,6 @@ func newWatchBroadcast(lg *zap.Logger, wp *watchProxy, w *watcher, update func(*
 		cctx = withClientAuthToken(cctx, w.wps.stream.Context())
 
 		wch := wp.cw.Watch(cctx, w.wr.key, opts...)
-		wp.lg.Debug("watch", zap.String("key", w.wr.key))
 
 		for wr := range wch {
 			wb.bcast(wr)
@@ -154,13 +148,5 @@ func (wb *watchBroadcast) stop() {
 	}
 
 	wb.cancel()
-
-	select {
-	case <-wb.donec:
-		// watchProxyStream will hold watchRanges global mutex lock all the time if client failed to cancel etcd watchers.
-		// and it will cause the watch proxy to not work.
-		// please see pr https://github.com/etcd-io/etcd/pull/12030 to get more detail info.
-	case <-time.After(time.Second):
-		wb.lg.Error("failed to cancel etcd watcher")
-	}
+	<-wb.donec
 }

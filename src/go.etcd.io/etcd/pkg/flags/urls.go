@@ -16,11 +16,10 @@ package flags
 
 import (
 	"flag"
-	"fmt"
 	"net/url"
 	"strings"
 
-	"go.etcd.io/etcd/v3/pkg/types"
+	"go.etcd.io/etcd/pkg/types"
 )
 
 // URLsValue wraps "types.URLs".
@@ -55,7 +54,7 @@ func NewURLsValue(s string) *URLsValue {
 	}
 	v := &URLsValue{}
 	if err := v.Set(s); err != nil {
-		panic(fmt.Sprintf("new URLsValue should never fail: %v", err))
+		plog.Panicf("new URLsValue should never fail: %v", err)
 	}
 	return v
 }

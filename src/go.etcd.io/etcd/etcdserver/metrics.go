@@ -18,8 +18,8 @@ import (
 	goruntime "runtime"
 	"time"
 
-	"go.etcd.io/etcd/v3/pkg/runtime"
-	"go.etcd.io/etcd/v3/version"
+	"go.etcd.io/etcd/pkg/runtime"
+	"go.etcd.io/etcd/version"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -195,16 +195,28 @@ func monitorFileDescriptor(lg *zap.Logger, done <-chan struct{}) {
 	for {
 		used, err := runtime.FDUsage()
 		if err != nil {
-			lg.Warn("failed to get file descriptor usage", zap.Error(err))
+			if lg != nil {
+				lg.Warn("failed to get file descriptor usage", zap.Error(err))
+			} else {
+				plog.Errorf("cannot monitor file descriptor usage (%v)", err)
+			}
 			return
 		}
 		limit, err := runtime.FDLimit()
 		if err != nil {
-			lg.Warn("failed to get file descriptor limit", zap.Error(err))
+			if lg != nil {
+				lg.Warn("failed to get file descriptor limit", zap.Error(err))
+			} else {
+				plog.Errorf("cannot monitor file descriptor usage (%v)", err)
+			}
 			return
 		}
 		if used >= limit/5*4 {
-			lg.Warn("80% of file descriptors are used", zap.Uint64("used", used), zap.Uint64("limit", limit))
+			if lg != nil {
+				lg.Warn("80% of file descriptors are used", zap.Uint64("used", used), zap.Uint64("limit", limit))
+			} else {
+				plog.Warningf("80%% of the file descriptor limit is used [used = %d, limit = %d]", used, limit)
+			}
 		}
 		select {
 		case <-ticker.C:

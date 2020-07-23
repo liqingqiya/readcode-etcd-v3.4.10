@@ -20,12 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/v3/clientv3"
-	pb "go.etcd.io/etcd/v3/etcdserver/etcdserverpb"
-	"go.etcd.io/etcd/v3/integration"
-	"go.etcd.io/etcd/v3/pkg/testutil"
+	"go.etcd.io/etcd/clientv3"
+	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
+	"go.etcd.io/etcd/integration"
+	"go.etcd.io/etcd/pkg/testutil"
 
-	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
 
@@ -35,7 +34,7 @@ func TestClusterProxyMemberList(t *testing.T) {
 	clus := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	defer clus.Terminate(t)
 
-	cts := newClusterProxyServer(zap.NewExample(), []string{clus.Members[0].GRPCAddr()}, t)
+	cts := newClusterProxyServer([]string{clus.Members[0].GRPCAddr()}, t)
 	defer cts.close(t)
 
 	cfg := clientv3.Config{
@@ -89,7 +88,7 @@ func (cts *clusterproxyTestServer) close(t *testing.T) {
 	}
 }
 
-func newClusterProxyServer(lg *zap.Logger, endpoints []string, t *testing.T) *clusterproxyTestServer {
+func newClusterProxyServer(endpoints []string, t *testing.T) *clusterproxyTestServer {
 	cfg := clientv3.Config{
 		Endpoints:   endpoints,
 		DialTimeout: 5 * time.Second,
@@ -114,8 +113,8 @@ func newClusterProxyServer(lg *zap.Logger, endpoints []string, t *testing.T) *cl
 		cts.server.Serve(cts.l)
 	}()
 
-	Register(lg, client, "test-prefix", cts.l.Addr().String(), 7)
-	cts.cp, cts.donec = NewClusterProxy(lg, client, cts.l.Addr().String(), "test-prefix")
+	Register(client, "test-prefix", cts.l.Addr().String(), 7)
+	cts.cp, cts.donec = NewClusterProxy(client, cts.l.Addr().String(), "test-prefix")
 	cts.caddr = cts.l.Addr().String()
 	pb.RegisterClusterServer(cts.server, cts.cp)
 	close(servec)

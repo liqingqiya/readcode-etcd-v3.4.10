@@ -21,12 +21,10 @@ import (
 	"testing"
 	"time"
 
-	stats "go.etcd.io/etcd/v3/etcdserver/api/v2stats"
-	"go.etcd.io/etcd/v3/pkg/types"
-	"go.etcd.io/etcd/v3/raft"
-	"go.etcd.io/etcd/v3/raft/raftpb"
-
-	"go.uber.org/zap"
+	stats "go.etcd.io/etcd/etcdserver/api/v2stats"
+	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/raft"
+	"go.etcd.io/etcd/raft/raftpb"
 )
 
 func BenchmarkSendingMsgApp(b *testing.B) {
@@ -36,7 +34,7 @@ func BenchmarkSendingMsgApp(b *testing.B) {
 		ClusterID:   types.ID(1),
 		Raft:        &fakeRaft{},
 		ServerStats: newServerStats(),
-		LeaderStats: stats.NewLeaderStats(zap.NewExample(), "1"),
+		LeaderStats: stats.NewLeaderStats("1"),
 	}
 	tr.Start()
 	srv := httptest.NewServer(tr.Handler())
@@ -49,7 +47,7 @@ func BenchmarkSendingMsgApp(b *testing.B) {
 		ClusterID:   types.ID(1),
 		Raft:        r,
 		ServerStats: newServerStats(),
-		LeaderStats: stats.NewLeaderStats(zap.NewExample(), "2"),
+		LeaderStats: stats.NewLeaderStats("2"),
 	}
 	tr2.Start()
 	srv2 := httptest.NewServer(tr2.Handler())

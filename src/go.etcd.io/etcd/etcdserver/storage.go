@@ -17,13 +17,13 @@ package etcdserver
 import (
 	"io"
 
-	"go.etcd.io/etcd/v3/etcdserver/api/snap"
-	pb "go.etcd.io/etcd/v3/etcdserver/etcdserverpb"
-	"go.etcd.io/etcd/v3/pkg/pbutil"
-	"go.etcd.io/etcd/v3/pkg/types"
-	"go.etcd.io/etcd/v3/raft/raftpb"
-	"go.etcd.io/etcd/v3/wal"
-	"go.etcd.io/etcd/v3/wal/walpb"
+	"go.etcd.io/etcd/etcdserver/api/snap"
+	pb "go.etcd.io/etcd/etcdserver/etcdserverpb"
+	"go.etcd.io/etcd/pkg/pbutil"
+	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/wal"
+	"go.etcd.io/etcd/wal/walpb"
 
 	"go.uber.org/zap"
 )
@@ -69,7 +69,6 @@ func (st *storage) SaveSnap(snap raftpb.Snapshot) error {
 	return st.WAL.SaveSnapshot(walsnap)
 }
 
-// 释放不需要的资源，另外有一个 goroutine 对哪些没有加锁的资源做清理；
 // Release releases resources older than the given snap and are no longer needed:
 // - releases the locks to the wal files that are older than the provided wal for the given snap.
 // - deletes any .snap.db files that are older than the given snap.
@@ -92,7 +91,11 @@ func readWAL(lg *zap.Logger, waldir string, snap walpb.Snapshot, unsafeNoFsync b
 	repaired := false
 	for {
 		if w, err = wal.Open(lg, waldir, snap); err != nil {
-			lg.Fatal("failed to open WAL", zap.Error(err))
+			if lg != nil {
+				lg.Fatal("failed to open WAL", zap.Error(err))
+			} else {
+				plog.Fatalf("open wal error: %v", err)
+			}
 		}
 		if unsafeNoFsync {
 			w.SetUnsafeNoFsync()
@@ -101,12 +104,24 @@ func readWAL(lg *zap.Logger, waldir string, snap walpb.Snapshot, unsafeNoFsync b
 			w.Close()
 			// we can only repair ErrUnexpectedEOF and we never repair twice.
 			if repaired || err != io.ErrUnexpectedEOF {
-				lg.Fatal("failed to read WAL, cannot be repaired", zap.Error(err))
+				if lg != nil {
+					lg.Fatal("failed to read WAL, cannot be repaired", zap.Error(err))
+				} else {
+					plog.Fatalf("read wal error (%v) and cannot be repaired", err)
+				}
 			}
 			if !wal.Repair(lg, waldir) {
-				lg.Fatal("failed to repair WAL", zap.Error(err))
+				if lg != nil {
+					lg.Fatal("failed to repair WAL", zap.Error(err))
+				} else {
+					plog.Fatalf("WAL error (%v) cannot be repaired", err)
+				}
 			} else {
-				lg.Info("repaired WAL", zap.Error(err))
+				if lg != nil {
+					lg.Info("repaired WAL", zap.Error(err))
+				} else {
+					plog.Infof("repaired WAL error (%v)", err)
+				}
 				repaired = true
 			}
 			continue

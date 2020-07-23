@@ -21,37 +21,34 @@ import (
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/v3/clientv3"
-	"go.etcd.io/etcd/v3/clientv3/concurrency"
-	recipe "go.etcd.io/etcd/v3/contrib/recipes"
-	"go.etcd.io/etcd/v3/mvcc/mvccpb"
-	"go.etcd.io/etcd/v3/pkg/testutil"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/clientv3/concurrency"
+	"go.etcd.io/etcd/contrib/recipes"
+	"go.etcd.io/etcd/mvcc/mvccpb"
+	"go.etcd.io/etcd/pkg/testutil"
 )
 
-func TestMutexLockSingleNode(t *testing.T) {
+func TestMutexSingleNode(t *testing.T) {
 	clus := NewClusterV3(t, &ClusterConfig{Size: 3})
 	defer clus.Terminate(t)
 
 	var clients []*clientv3.Client
-	testMutexLock(t, 5, makeSingleNodeClients(t, clus.cluster, &clients))
+	testMutex(t, 5, makeSingleNodeClients(t, clus.cluster, &clients))
 	closeClients(t, clients)
 }
 
-func TestMutexLockMultiNode(t *testing.T) {
+func TestMutexMultiNode(t *testing.T) {
 	clus := NewClusterV3(t, &ClusterConfig{Size: 3})
 	defer clus.Terminate(t)
 
 	var clients []*clientv3.Client
-	testMutexLock(t, 5, makeMultiNodeClients(t, clus.cluster, &clients))
+	testMutex(t, 5, makeMultiNodeClients(t, clus.cluster, &clients))
 	closeClients(t, clients)
 }
 
-func testMutexLock(t *testing.T, waiters int, chooseClient func() *clientv3.Client) {
+func testMutex(t *testing.T, waiters int, chooseClient func() *clientv3.Client) {
 	// stream lock acquisitions
 	lockedC := make(chan *concurrency.Mutex)
-	stopC := make(chan struct{})
-	defer close(stopC)
-
 	for i := 0; i < waiters; i++ {
 		go func() {
 			session, err := concurrency.NewSession(chooseClient())
@@ -62,11 +59,7 @@ func testMutexLock(t *testing.T, waiters int, chooseClient func() *clientv3.Clie
 			if err := m.Lock(context.TODO()); err != nil {
 				t.Errorf("could not wait on lock (%v)", err)
 			}
-			select {
-			case lockedC <- m:
-			case <-stopC:
-			}
-
+			lockedC <- m
 		}()
 	}
 	// unlock locked mutexes
@@ -86,70 +79,6 @@ func testMutexLock(t *testing.T, waiters int, chooseClient func() *clientv3.Clie
 				t.Fatalf("could not release lock (%v)", err)
 			}
 		}
-	}
-}
-
-func TestMutexTryLockSingleNode(t *testing.T) {
-	clus := NewClusterV3(t, &ClusterConfig{Size: 3})
-	defer clus.Terminate(t)
-
-	var clients []*clientv3.Client
-	testMutexTryLock(t, 5, makeSingleNodeClients(t, clus.cluster, &clients))
-	closeClients(t, clients)
-}
-
-func TestMutexTryLockMultiNode(t *testing.T) {
-	clus := NewClusterV3(t, &ClusterConfig{Size: 3})
-	defer clus.Terminate(t)
-
-	var clients []*clientv3.Client
-	testMutexTryLock(t, 5, makeMultiNodeClients(t, clus.cluster, &clients))
-	closeClients(t, clients)
-}
-
-func testMutexTryLock(t *testing.T, lockers int, chooseClient func() *clientv3.Client) {
-	lockedC := make(chan *concurrency.Mutex)
-	notlockedC := make(chan *concurrency.Mutex)
-	stopC := make(chan struct{})
-	defer close(stopC)
-	for i := 0; i < lockers; i++ {
-		go func() {
-			session, err := concurrency.NewSession(chooseClient())
-			if err != nil {
-				t.Error(err)
-			}
-			m := concurrency.NewMutex(session, "test-mutex-try-lock")
-			err = m.TryLock(context.TODO())
-			if err == nil {
-				select {
-				case lockedC <- m:
-				case <-stopC:
-				}
-			} else if err == concurrency.ErrLocked {
-				select {
-				case notlockedC <- m:
-				case <-stopC:
-				}
-			} else {
-				t.Errorf("Unexpected Error %v", err)
-			}
-		}()
-	}
-
-	timerC := time.After(time.Second)
-	select {
-	case <-lockedC:
-		for i := 0; i < lockers-1; i++ {
-			select {
-			case <-lockedC:
-				t.Fatalf("Multiple Mutes locked on same key")
-			case <-notlockedC:
-			case <-timerC:
-				t.Errorf("timed out waiting for lock")
-			}
-		}
-	case <-timerC:
-		t.Errorf("timed out waiting for lock")
 	}
 }
 
@@ -290,7 +219,7 @@ func BenchmarkMutex4Waiters(b *testing.B) {
 	clus := NewClusterV3(nil, &ClusterConfig{Size: 3})
 	defer clus.Terminate(nil)
 	for i := 0; i < b.N; i++ {
-		testMutexLock(nil, 4, func() *clientv3.Client { return clus.RandClient() })
+		testMutex(nil, 4, func() *clientv3.Client { return clus.RandClient() })
 	}
 }
 

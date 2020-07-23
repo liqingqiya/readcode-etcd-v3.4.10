@@ -24,9 +24,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"go.etcd.io/etcd/v3/pkg/systemd"
+	"go.etcd.io/etcd/pkg/systemd"
 
-	"github.com/coreos/go-systemd/v22/journal"
+	"github.com/coreos/go-systemd/journal"
 	"go.uber.org/zap/zapcore"
 )
 

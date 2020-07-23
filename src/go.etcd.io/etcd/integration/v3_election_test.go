@@ -20,8 +20,8 @@ import (
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/v3/clientv3"
-	"go.etcd.io/etcd/v3/clientv3/concurrency"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/clientv3/concurrency"
 )
 
 // TestElectionWait tests if followers can correctly wait for elections.
@@ -140,11 +140,13 @@ func TestElectionFailover(t *testing.T) {
 	}
 
 	// next leader
-	electedErrC := make(chan error, 1)
+	electedc := make(chan struct{})
 	go func() {
 		ee := concurrency.NewElection(ss[1], "test-election")
-		eer := ee.Campaign(context.TODO(), "bar")
-		electedErrC <- eer // If eer != nil, the test will fail by calling t.Fatal(eer)
+		if eer := ee.Campaign(context.TODO(), "bar"); eer != nil {
+			t.Fatal(eer)
+		}
+		electedc <- struct{}{}
 	}()
 
 	// invoke leader failover
@@ -164,10 +166,7 @@ func TestElectionFailover(t *testing.T) {
 	}
 
 	// leader must ack election (otherwise, Campaign may see closed conn)
-	eer := <-electedErrC
-	if eer != nil {
-		t.Fatal(eer)
-	}
+	<-electedc
 }
 
 // TestElectionSessionRelock ensures that campaigning twice on the same election

@@ -30,23 +30,22 @@ import (
 
 	"github.com/dustin/go-humanize"
 	bolt "go.etcd.io/bbolt"
-	"go.etcd.io/etcd/v3/clientv3"
-	"go.etcd.io/etcd/v3/etcdserver"
-	"go.etcd.io/etcd/v3/etcdserver/api/membership"
-	"go.etcd.io/etcd/v3/etcdserver/api/snap"
-	"go.etcd.io/etcd/v3/etcdserver/api/v2store"
-	"go.etcd.io/etcd/v3/etcdserver/cindex"
-	"go.etcd.io/etcd/v3/etcdserver/etcdserverpb"
-	"go.etcd.io/etcd/v3/lease"
-	"go.etcd.io/etcd/v3/mvcc"
-	"go.etcd.io/etcd/v3/mvcc/backend"
-	"go.etcd.io/etcd/v3/pkg/fileutil"
-	"go.etcd.io/etcd/v3/pkg/traceutil"
-	"go.etcd.io/etcd/v3/pkg/types"
-	"go.etcd.io/etcd/v3/raft"
-	"go.etcd.io/etcd/v3/raft/raftpb"
-	"go.etcd.io/etcd/v3/wal"
-	"go.etcd.io/etcd/v3/wal/walpb"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/etcdserver"
+	"go.etcd.io/etcd/etcdserver/api/membership"
+	"go.etcd.io/etcd/etcdserver/api/snap"
+	"go.etcd.io/etcd/etcdserver/api/v2store"
+	"go.etcd.io/etcd/etcdserver/etcdserverpb"
+	"go.etcd.io/etcd/lease"
+	"go.etcd.io/etcd/mvcc"
+	"go.etcd.io/etcd/mvcc/backend"
+	"go.etcd.io/etcd/pkg/fileutil"
+	"go.etcd.io/etcd/pkg/traceutil"
+	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/raft"
+	"go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/wal"
+	"go.etcd.io/etcd/wal/walpb"
 	"go.uber.org/zap"
 )
 
@@ -140,10 +139,11 @@ func (s *v3Manager) Save(ctx context.Context, cfg clientv3.Config, dbPath string
 	if err = f.Close(); err != nil {
 		return err
 	}
-	s.lg.Info("fetched snapshot",
+	s.lg.Info(
+		"fetched snapshot",
 		zap.String("endpoint", cfg.Endpoints[0]),
 		zap.String("size", humanize.Bytes(uint64(size))),
-		zap.String("took", humanize.Time(now)),
+		zap.Duration("took", time.Since(now)),
 	)
 
 	if err = os.Rename(partpath, dbPath); err != nil {
@@ -191,26 +191,18 @@ func (s *v3Manager) Status(dbPath string) (ds Status, err error) {
 			if b == nil {
 				return fmt.Errorf("cannot get hash of bucket %s", string(next))
 			}
-			if _, err := h.Write(next); err != nil {
-				return fmt.Errorf("cannot write bucket %s : %v", string(next), err)
-			}
+			h.Write(next)
 			iskeyb := (string(next) == "key")
-			if err := b.ForEach(func(k, v []byte) error {
-				if _, err := h.Write(k); err != nil {
-					return fmt.Errorf("cannot write to bucket %s", err.Error())
-				}
-				if _, err := h.Write(v); err != nil {
-					return fmt.Errorf("cannot write to bucket %s", err.Error())
-				}
+			b.ForEach(func(k, v []byte) error {
+				h.Write(k)
+				h.Write(v)
 				if iskeyb {
 					rev := bytesToRev(k)
 					ds.Revision = rev.main
 				}
 				ds.TotalKey++
 				return nil
-			}); err != nil {
-				return fmt.Errorf("cannot write bucket %s : %v", string(next), err)
-			}
+			})
 		}
 		return nil
 	}); err != nil {
@@ -284,8 +276,8 @@ func (s *v3Manager) Restore(cfg RestoreConfig) error {
 	if dataDir == "" {
 		dataDir = cfg.Name + ".etcd"
 	}
-	if fileutil.Exist(dataDir) && !fileutil.DirEmpty(dataDir) {
-		return fmt.Errorf("data-dir %q not empty or could not be read", dataDir)
+	if fileutil.Exist(dataDir) {
+		return fmt.Errorf("data-dir %q exists", dataDir)
 	}
 
 	walDir := cfg.OutputWALDir
@@ -354,13 +346,6 @@ func (s *v3Manager) saveDB() error {
 	if dberr != nil {
 		return dberr
 	}
-	dbClosed := false
-	defer func() {
-		if !dbClosed {
-			db.Close()
-			dbClosed = true
-		}
-	}()
 	if _, err := io.Copy(db, f); err != nil {
 		return err
 	}
@@ -398,7 +383,6 @@ func (s *v3Manager) saveDB() error {
 
 	// db hash is OK, can now modify DB so it can be part of a new cluster
 	db.Close()
-	dbClosed = true
 
 	commit := len(s.cl.Members())
 
@@ -406,13 +390,10 @@ func (s *v3Manager) saveDB() error {
 	// having a new raft instance
 	be := backend.NewDefaultBackend(dbpath)
 
-	ci := cindex.NewConsistentIndex(be.BatchTx())
-	ci.SetConsistentIndex(uint64(commit))
-
 	// a lessor never timeouts leases
-	lessor := lease.NewLessor(s.lg, be, lease.LessorConfig{MinLeaseTTL: math.MaxInt64}, ci)
+	lessor := lease.NewLessor(s.lg, be, lease.LessorConfig{MinLeaseTTL: math.MaxInt64})
 
-	mvs := mvcc.NewStore(s.lg, be, lessor, ci, mvcc.StoreConfig{CompactionBatchLimit: math.MaxInt32})
+	mvs := mvcc.NewStore(s.lg, be, lessor, (*initIndex)(&commit), mvcc.StoreConfig{CompactionBatchLimit: math.MaxInt32})
 	txn := mvs.Write(traceutil.TODO())
 	btx := be.BatchTx()
 	del := func(k, v []byte) error {

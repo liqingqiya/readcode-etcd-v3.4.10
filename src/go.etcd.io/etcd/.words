@@ -30,13 +30,14 @@ etcd
 gRPC
 goroutine
 goroutines
-hasleader
 healthcheck
 hostname
 iff
 inflight
 keepalive
 keepalives
+hasleader
+racey
 keyspace
 linearization
 liveness
@@ -46,7 +47,6 @@ mutex
 prefetching
 protobuf
 prometheus
-racey
 rafthttp
 repin
 rpc
@@ -75,6 +75,7 @@ WAL
 consistentIndex
 todo
 saveWALAndSnap
+
 SHA
 subconns
 nop

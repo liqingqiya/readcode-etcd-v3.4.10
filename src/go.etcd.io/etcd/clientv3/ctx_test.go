@@ -19,8 +19,8 @@ import (
 	"reflect"
 	"testing"
 
-	"go.etcd.io/etcd/v3/etcdserver/api/v3rpc/rpctypes"
-	"go.etcd.io/etcd/v3/version"
+	"go.etcd.io/etcd/etcdserver/api/v3rpc/rpctypes"
+	"go.etcd.io/etcd/version"
 	"google.golang.org/grpc/metadata"
 )
 
@@ -34,7 +34,7 @@ func TestMetadataWithRequireLeader(t *testing.T) {
 	// add a conflicting key with some other value
 	md = metadata.Pairs(rpctypes.MetadataRequireLeaderKey, "invalid")
 	// add a key, and expect not be overwritten
-	md.Set("hello", "1", "2")
+	metadataSet(md, "hello", "1", "2")
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
 	// expect overwrites but still keep other keys
@@ -43,10 +43,10 @@ func TestMetadataWithRequireLeader(t *testing.T) {
 	if !ok {
 		t.Fatal("expected outgoing metadata ctx key")
 	}
-	if ss := md.Get(rpctypes.MetadataRequireLeaderKey); !reflect.DeepEqual(ss, []string{rpctypes.MetadataHasLeader}) {
+	if ss := metadataGet(md, rpctypes.MetadataRequireLeaderKey); !reflect.DeepEqual(ss, []string{rpctypes.MetadataHasLeader}) {
 		t.Fatalf("unexpected metadata for %q %v", rpctypes.MetadataRequireLeaderKey, ss)
 	}
-	if ss := md.Get("hello"); !reflect.DeepEqual(ss, []string{"1", "2"}) {
+	if ss := metadataGet(md, "hello"); !reflect.DeepEqual(ss, []string{"1", "2"}) {
 		t.Fatalf("unexpected metadata for 'hello' %v", ss)
 	}
 }
@@ -58,10 +58,10 @@ func TestMetadataWithClientAPIVersion(t *testing.T) {
 	if !ok {
 		t.Fatal("expected outgoing metadata ctx key")
 	}
-	if ss := md.Get(rpctypes.MetadataRequireLeaderKey); !reflect.DeepEqual(ss, []string{rpctypes.MetadataHasLeader}) {
+	if ss := metadataGet(md, rpctypes.MetadataRequireLeaderKey); !reflect.DeepEqual(ss, []string{rpctypes.MetadataHasLeader}) {
 		t.Fatalf("unexpected metadata for %q %v", rpctypes.MetadataRequireLeaderKey, ss)
 	}
-	if ss := md.Get(rpctypes.MetadataClientAPIVersionKey); !reflect.DeepEqual(ss, []string{version.APIVersion}) {
+	if ss := metadataGet(md, rpctypes.MetadataClientAPIVersionKey); !reflect.DeepEqual(ss, []string{version.APIVersion}) {
 		t.Fatalf("unexpected metadata for %q %v", rpctypes.MetadataClientAPIVersionKey, ss)
 	}
 }

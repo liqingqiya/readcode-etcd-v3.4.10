@@ -23,7 +23,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"go.etcd.io/etcd/v3/pkg/fileutil"
+	"go.etcd.io/etcd/pkg/fileutil"
 
 	humanize "github.com/dustin/go-humanize"
 	"go.uber.org/zap"
@@ -31,7 +31,6 @@ import (
 
 var ErrNoDBSnapshot = errors.New("snap: snapshot file doesn't exist")
 
-// 保存快照，读数据从 reader 里面读取，这里保证原子操作，用的是 rename
 // SaveDBFrom saves snapshot of the database from the given reader. It
 // guarantees the save operation is atomic.
 func (s *Snapshotter) SaveDBFrom(r io.Reader, id uint64) (int64, error) {
@@ -64,12 +63,16 @@ func (s *Snapshotter) SaveDBFrom(r io.Reader, id uint64) (int64, error) {
 		return n, err
 	}
 
-	s.lg.Info(
-		"saved database snapshot to disk",
-		zap.String("path", fn),
-		zap.Int64("bytes", n),
-		zap.String("size", humanize.Bytes(uint64(n))),
-	)
+	if s.lg != nil {
+		s.lg.Info(
+			"saved database snapshot to disk",
+			zap.String("path", fn),
+			zap.Int64("bytes", n),
+			zap.String("size", humanize.Bytes(uint64(n))),
+		)
+	} else {
+		plog.Infof("saved database snapshot to disk [total bytes: %d]", n)
+	}
 
 	snapDBSaveSec.Observe(time.Since(start).Seconds())
 	return n, nil

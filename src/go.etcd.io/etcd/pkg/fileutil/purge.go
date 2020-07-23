@@ -34,14 +34,9 @@ func PurgeFileWithDoneNotify(lg *zap.Logger, dirname string, suffix string, max 
 	return doneC, errC
 }
 
-// 单独的清理协程，定期的清理可以清理的文件。什么是可以清理的？没有加锁的。
-// 换句话说，内部的约定是，需要的你就加锁，没加锁的就是可以清理的； 这样就简单了
 // purgeFile is the internal implementation for PurgeFile which can post purged files to purgec if non-nil.
 // if donec is non-nil, the function closes it to notify its exit.
 func purgeFile(lg *zap.Logger, dirname string, suffix string, max uint, interval time.Duration, stop <-chan struct{}, purgec chan<- string, donec chan<- struct{}) <-chan error {
-	if lg == nil {
-		lg = zap.NewNop()
-	}
 	errC := make(chan error, 1)
 	go func() {
 		if donec != nil {
@@ -63,8 +58,6 @@ func purgeFile(lg *zap.Logger, dirname string, suffix string, max uint, interval
 			fnames = newfnames
 			for len(newfnames) > int(max) {
 				f := filepath.Join(dirname, newfnames[0])
-				// 加锁成功的才会有可能被清理，加锁失败的直接跳出
-				// 其实被锁住的就是需要的，可以清理的是放锁了的，所有才有可能被清理
 				l, err := TryLockFile(f, os.O_WRONLY, PrivateFileMode)
 				if err != nil {
 					break
@@ -74,11 +67,19 @@ func purgeFile(lg *zap.Logger, dirname string, suffix string, max uint, interval
 					return
 				}
 				if err = l.Close(); err != nil {
-					lg.Warn("failed to unlock/close", zap.String("path", l.Name()), zap.Error(err))
+					if lg != nil {
+						lg.Warn("failed to unlock/close", zap.String("path", l.Name()), zap.Error(err))
+					} else {
+						plog.Errorf("error unlocking %s when purging file (%v)", l.Name(), err)
+					}
 					errC <- err
 					return
 				}
-				lg.Info("purged", zap.String("path", f))
+				if lg != nil {
+					lg.Info("purged", zap.String("path", f))
+				} else {
+					plog.Infof("purged file %s successfully", f)
+				}
 				newfnames = newfnames[1:]
 			}
 			if purgec != nil {

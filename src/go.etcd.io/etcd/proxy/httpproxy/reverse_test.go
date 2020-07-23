@@ -23,8 +23,6 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
-
-	"go.uber.org/zap"
 )
 
 type staticRoundTripper struct {
@@ -38,7 +36,6 @@ func (srt *staticRoundTripper) RoundTrip(*http.Request) (*http.Response, error) 
 
 func TestReverseProxyServe(t *testing.T) {
 	u := url.URL{Scheme: "http", Host: "192.0.2.3:4040"}
-	lg := zap.NewExample()
 
 	tests := []struct {
 		eps  []*endpoint
@@ -80,8 +77,7 @@ func TestReverseProxyServe(t *testing.T) {
 
 	for i, tt := range tests {
 		rp := reverseProxy{
-			lg:        lg,
-			director:  &director{lg: lg, ep: tt.eps},
+			director:  &director{ep: tt.eps},
 			transport: tt.rt,
 		}
 

@@ -20,17 +20,21 @@ import (
 	"sync"
 	"time"
 
-	"go.etcd.io/etcd/v3/etcdserver/api/snap"
-	stats "go.etcd.io/etcd/v3/etcdserver/api/v2stats"
-	"go.etcd.io/etcd/v3/pkg/transport"
-	"go.etcd.io/etcd/v3/pkg/types"
-	"go.etcd.io/etcd/v3/raft"
-	"go.etcd.io/etcd/v3/raft/raftpb"
+	"go.etcd.io/etcd/etcdserver/api/snap"
+	stats "go.etcd.io/etcd/etcdserver/api/v2stats"
+	"go.etcd.io/etcd/pkg/logutil"
+	"go.etcd.io/etcd/pkg/transport"
+	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/raft"
+	"go.etcd.io/etcd/raft/raftpb"
 
+	"github.com/coreos/pkg/capnslog"
 	"github.com/xiang90/probing"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
+
+var plog = logutil.NewMergeLogger(capnslog.NewPackageLogger("go.etcd.io/etcd", "rafthttp"))
 
 type Raft interface {
 	Process(ctx context.Context, m raftpb.Message) error
@@ -159,7 +163,6 @@ func (t *Transport) Handler() http.Handler {
 	streamHandler := newStreamHandler(t, t, t.Raft, t.ID, t.ClusterID)
 	snapHandler := newSnapshotHandler(t, t.Raft, t.Snapshotter, t.ClusterID)
 	mux := http.NewServeMux()
-	// 路由表
 	mux.Handle(RaftPrefix, pipelineHandler)
 	mux.Handle(RaftStreamPrefix+"/", streamHandler)
 	mux.Handle(RaftSnapshotPrefix, snapHandler)
@@ -205,6 +208,8 @@ func (t *Transport) Send(msgs []raftpb.Message) {
 				zap.String("type", m.Type.String()),
 				zap.String("unknown-target-peer-id", to.String()),
 			)
+		} else {
+			plog.Debugf("ignored message %s (sent to unknown peer %s)", m.Type, to)
 		}
 	}
 }
@@ -279,6 +284,8 @@ func (t *Transport) AddRemote(id types.ID, us []string) {
 	if err != nil {
 		if t.Logger != nil {
 			t.Logger.Panic("failed NewURLs", zap.Strings("urls", us), zap.Error(err))
+		} else {
+			plog.Panicf("newURLs %+v should never fail: %+v", us, err)
 		}
 	}
 	t.remotes[id] = startRemote(t, urls, id)
@@ -293,7 +300,6 @@ func (t *Transport) AddRemote(id types.ID, us []string) {
 	}
 }
 
-// 准备好和 peer 节点通信的事情
 func (t *Transport) AddPeer(id types.ID, us []string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -308,6 +314,8 @@ func (t *Transport) AddPeer(id types.ID, us []string) {
 	if err != nil {
 		if t.Logger != nil {
 			t.Logger.Panic("failed NewURLs", zap.Strings("urls", us), zap.Error(err))
+		} else {
+			plog.Panicf("newURLs %+v should never fail: %+v", us, err)
 		}
 	}
 	fs := t.LeaderStats.Follower(id.String())
@@ -322,6 +330,8 @@ func (t *Transport) AddPeer(id types.ID, us []string) {
 			zap.String("remote-peer-id", id.String()),
 			zap.Strings("remote-peer-urls", us),
 		)
+	} else {
+		plog.Infof("added peer %s", id)
 	}
 }
 
@@ -346,6 +356,8 @@ func (t *Transport) removePeer(id types.ID) {
 	} else {
 		if t.Logger != nil {
 			t.Logger.Panic("unexpected removal of unknown remote peer", zap.String("remote-peer-id", id.String()))
+		} else {
+			plog.Panicf("unexpected removal of unknown peer '%d'", id)
 		}
 	}
 	delete(t.peers, id)
@@ -359,6 +371,8 @@ func (t *Transport) removePeer(id types.ID) {
 			zap.String("local-member-id", t.ID.String()),
 			zap.String("removed-remote-peer-id", id.String()),
 		)
+	} else {
+		plog.Infof("removed peer %s", id)
 	}
 }
 
@@ -373,6 +387,8 @@ func (t *Transport) UpdatePeer(id types.ID, us []string) {
 	if err != nil {
 		if t.Logger != nil {
 			t.Logger.Panic("failed NewURLs", zap.Strings("urls", us), zap.Error(err))
+		} else {
+			plog.Panicf("newURLs %+v should never fail: %+v", us, err)
 		}
 	}
 	t.peers[id].update(urls)
@@ -389,6 +405,8 @@ func (t *Transport) UpdatePeer(id types.ID, us []string) {
 			zap.String("updated-remote-peer-id", id.String()),
 			zap.Strings("updated-remote-peer-urls", us),
 		)
+	} else {
+		plog.Infof("updated peer %s", id)
 	}
 }
 

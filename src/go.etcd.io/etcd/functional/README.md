@@ -16,7 +16,7 @@ PASSES=functional ./test
 
 ```bash
 pushd ..
-make build-docker-functional push-docker-functional pull-docker-functional
+make build-docker-functional
 popd
 ```
 

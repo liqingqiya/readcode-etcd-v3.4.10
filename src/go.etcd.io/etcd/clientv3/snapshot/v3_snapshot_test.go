@@ -25,10 +25,10 @@ import (
 	"testing"
 	"time"
 
-	"go.etcd.io/etcd/v3/clientv3"
-	"go.etcd.io/etcd/v3/embed"
-	"go.etcd.io/etcd/v3/pkg/fileutil"
-	"go.etcd.io/etcd/v3/pkg/testutil"
+	"go.etcd.io/etcd/clientv3"
+	"go.etcd.io/etcd/embed"
+	"go.etcd.io/etcd/pkg/fileutil"
+	"go.etcd.io/etcd/pkg/testutil"
 
 	"go.uber.org/zap"
 )
@@ -47,6 +47,7 @@ func TestSnapshotV3RestoreSingle(t *testing.T) {
 	cfg := embed.NewConfig()
 	cfg.Logger = "zap"
 	cfg.LogOutputs = []string{"/dev/null"}
+	cfg.Debug = false
 	cfg.Name = "s1"
 	cfg.InitialClusterToken = testClusterTkn
 	cfg.ClusterState = "existing"
@@ -199,6 +200,7 @@ func createSnapshotFile(t *testing.T, kvs []kv) string {
 	cfg := embed.NewConfig()
 	cfg.Logger = "zap"
 	cfg.LogOutputs = []string{"/dev/null"}
+	cfg.Debug = false
 	cfg.Name = "default"
 	cfg.ClusterState = "new"
 	cfg.LCUrls, cfg.ACUrls = cURLs, cURLs
@@ -265,6 +267,7 @@ func restoreCluster(t *testing.T, clusterN int, dbPath string) (
 		cfg := embed.NewConfig()
 		cfg.Logger = "zap"
 		cfg.LogOutputs = []string{"/dev/null"}
+		cfg.Debug = false
 		cfg.Name = fmt.Sprintf("%d", i)
 		cfg.InitialClusterToken = testClusterTkn
 		cfg.ClusterState = "existing"

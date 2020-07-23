@@ -17,16 +17,15 @@ package membership
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/coreos/go-semver/semver"
 	"path"
 	"reflect"
 	"testing"
 
-	"go.etcd.io/etcd/v3/etcdserver/api/v2store"
-	"go.etcd.io/etcd/v3/pkg/mock/mockstore"
-	"go.etcd.io/etcd/v3/pkg/testutil"
-	"go.etcd.io/etcd/v3/pkg/types"
-	"go.etcd.io/etcd/v3/raft/raftpb"
+	"go.etcd.io/etcd/etcdserver/api/v2store"
+	"go.etcd.io/etcd/pkg/mock/mockstore"
+	"go.etcd.io/etcd/pkg/testutil"
+	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/raft/raftpb"
 
 	"go.uber.org/zap"
 )
@@ -477,7 +476,7 @@ func TestNodeToMemberBad(t *testing.T) {
 		}},
 	}
 	for i, tt := range tests {
-		if _, err := nodeToMember(zap.NewExample(), tt); err == nil {
+		if _, err := nodeToMember(tt); err == nil {
 			t.Errorf("#%d: unexpected nil error", i)
 		}
 	}
@@ -530,13 +529,15 @@ func TestClusterAddMemberAsLearner(t *testing.T) {
 }
 
 func TestClusterMembers(t *testing.T) {
-	cls := newTestCluster([]*Member{
-		{ID: 1},
-		{ID: 20},
-		{ID: 100},
-		{ID: 5},
-		{ID: 50},
-	})
+	cls := &RaftCluster{
+		members: map[types.ID]*Member{
+			1:   {ID: 1},
+			20:  {ID: 20},
+			100: {ID: 100},
+			5:   {ID: 5},
+			50:  {ID: 50},
+		},
+	}
 	w := []*Member{
 		{ID: 1},
 		{ID: 5},
@@ -606,7 +607,7 @@ func TestNodeToMember(t *testing.T) {
 		{Key: "/1234/raftAttributes", Value: stringp(`{"peerURLs":null}`)},
 	}}
 	wm := &Member{ID: 0x1234, RaftAttributes: RaftAttributes{}, Attributes: Attributes{Name: "node1"}}
-	m, err := nodeToMember(zap.NewExample(), n)
+	m, err := nodeToMember(n)
 	if err != nil {
 		t.Fatalf("unexpected nodeToMember error: %v", err)
 	}
@@ -943,77 +944,5 @@ func TestIsReadyToPromoteMember(t *testing.T) {
 		if got := c.IsReadyToPromoteMember(tt.promoteID); got != tt.want {
 			t.Errorf("%d: isReadyToPromoteMember returned %t, want %t", i, got, tt.want)
 		}
-	}
-}
-
-func TestIsVersionChangable(t *testing.T) {
-	v0 := semver.Must(semver.NewVersion("2.4.0"))
-	v1 := semver.Must(semver.NewVersion("3.4.0"))
-	v2 := semver.Must(semver.NewVersion("3.5.0"))
-	v3 := semver.Must(semver.NewVersion("3.5.1"))
-	v4 := semver.Must(semver.NewVersion("3.6.0"))
-
-	tests := []struct {
-		name           string
-		currentVersion *semver.Version
-		localVersion   *semver.Version
-		expectedResult bool
-	}{
-		{
-			name:           "When local version is one minor lower than cluster version",
-			currentVersion: v2,
-			localVersion:   v1,
-			expectedResult: true,
-		},
-		{
-			name:           "When local version is one minor and one patch lower than cluster version",
-			currentVersion: v3,
-			localVersion:   v1,
-			expectedResult: true,
-		},
-		{
-			name:           "When local version is one minor higher than cluster version",
-			currentVersion: v1,
-			localVersion:   v2,
-			expectedResult: true,
-		},
-		{
-			name:           "When local version is two minor higher than cluster version",
-			currentVersion: v1,
-			localVersion:   v4,
-			expectedResult: true,
-		},
-		{
-			name:           "When local version is one major higher than cluster version",
-			currentVersion: v0,
-			localVersion:   v1,
-			expectedResult: false,
-		},
-		{
-			name:           "When local version is equal to cluster version",
-			currentVersion: v1,
-			localVersion:   v1,
-			expectedResult: false,
-		},
-		{
-			name:           "When local version is one patch higher than cluster version",
-			currentVersion: v2,
-			localVersion:   v3,
-			expectedResult: false,
-		},
-		{
-			name:           "When local version is two minor lower than cluster version",
-			currentVersion: v4,
-			localVersion:   v1,
-			expectedResult: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if ret := IsValidVersionChange(tt.currentVersion, tt.localVersion); ret != tt.expectedResult {
-				t.Errorf("Expected %v; Got %v", tt.expectedResult, ret)
-			}
-		})
 	}
 }

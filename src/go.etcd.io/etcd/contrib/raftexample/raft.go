@@ -24,38 +24,37 @@ import (
 	"strconv"
 	"time"
 
-	"go.etcd.io/etcd/v3/etcdserver/api/rafthttp"
-	"go.etcd.io/etcd/v3/etcdserver/api/snap"
-	stats "go.etcd.io/etcd/v3/etcdserver/api/v2stats"
-	"go.etcd.io/etcd/v3/pkg/fileutil"
-	"go.etcd.io/etcd/v3/pkg/types"
-	"go.etcd.io/etcd/v3/raft"
-	"go.etcd.io/etcd/v3/raft/raftpb"
-	"go.etcd.io/etcd/v3/wal"
-	"go.etcd.io/etcd/v3/wal/walpb"
+	"go.etcd.io/etcd/etcdserver/api/rafthttp"
+	"go.etcd.io/etcd/etcdserver/api/snap"
+	stats "go.etcd.io/etcd/etcdserver/api/v2stats"
+	"go.etcd.io/etcd/pkg/fileutil"
+	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/raft"
+	"go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/wal"
+	"go.etcd.io/etcd/wal/walpb"
 
 	"go.uber.org/zap"
 )
 
-// 业务的循环状态机
 // A key-value stream backed by raft
 type raftNode struct {
-	proposeC    <-chan string            // proposed messages (k,v)；输入的消息
+	proposeC    <-chan string            // proposed messages (k,v)
 	confChangeC <-chan raftpb.ConfChange // proposed cluster config changes
-	commitC     chan<- *string           // entries committed to log (k,v)；已经被 commit 过的 entry
+	commitC     chan<- *string           // entries committed to log (k,v)
 	errorC      chan<- error             // errors from raft session
 
-	id          int                    // client ID for raft session
-	peers       []string               // raft peer URLs
-	join        bool                   // node is joining an existing cluster
-	waldir      string                 // path to WAL directory
-	snapdir     string                 // path to snapshot directory
-	getSnapshot func() ([]byte, error) // 获取快照，方法由应用实现
-	lastIndex   uint64                 // index of log at start
+	id          int      // client ID for raft session
+	peers       []string // raft peer URLs
+	join        bool     // node is joining an existing cluster
+	waldir      string   // path to WAL directory
+	snapdir     string   // path to snapshot directory
+	getSnapshot func() ([]byte, error)
+	lastIndex   uint64 // index of log at start
 
-	confState     raftpb.ConfState //
-	snapshotIndex uint64           // 最近一次快照记录的日志的 index，快照之前的是可以被安全删除的。这个赋值只有两种情况，1）触发一次快照 2）从持久化中加载
-	appliedIndex  uint64           // 这个之前的一定是 apply 过的日志, 这个是日志索引
+	confState     raftpb.ConfState
+	snapshotIndex uint64
+	appliedIndex  uint64
 
 	// raft backing for the commit/error channel
 	node        raft.Node
@@ -72,7 +71,6 @@ type raftNode struct {
 	httpdonec chan struct{} // signals http server shutdown complete
 }
 
-// 默认每 10000 条记录就会触发创建一次快照, 指导创建快照的时机
 var defaultSnapshotCount uint64 = 10000
 
 // newRaftNode initiates a raft instance and returns a committed log entry
@@ -117,32 +115,21 @@ func (rc *raftNode) saveSnap(snap raftpb.Snapshot) error {
 		Index: snap.Metadata.Index,
 		Term:  snap.Metadata.Term,
 	}
-	// wal 文件里面保存一个元数据的快照信息
 	if err := rc.wal.SaveSnapshot(walSnap); err != nil {
 		return err
 	}
-	// 应用数据的快照在快照目录文件里
 	if err := rc.snapshotter.SaveSnap(snap); err != nil {
 		return err
 	}
-	// 根据情况释放一些可以释放的 wal 文件（这样，后台的某个 goroutine 就能把这个文件删除了）
 	return rc.wal.ReleaseLockTo(snap.Metadata.Index)
 }
 
-// 这个函数就是校验并且裁剪出正确的需要 apply 的 entry 数组，比如有些已经 apply 过的 entry，就不需要 apply 了
-/*
-  first
-   |------------|
-     apply     committed
--------|---------|---------------|
-*/
 func (rc *raftNode) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry) {
 	if len(ents) == 0 {
 		return ents
 	}
 	firstIdx := ents[0].Index
 	if firstIdx > rc.appliedIndex+1 {
-		// 这种情况不允许出现，否则未知情况就是丢数据了
 		log.Fatalf("first index of committed entry[%d] should <= progress.appliedIndex[%d]+1", firstIdx, rc.appliedIndex)
 	}
 	if rc.appliedIndex-firstIdx+1 < uint64(len(ents)) {
@@ -151,33 +138,26 @@ func (rc *raftNode) entriesToApply(ents []raftpb.Entry) (nents []raftpb.Entry) {
 	return nents
 }
 
-// 已经被多数节点 commit 过但是还没有 apply 的 entries 在这里 apply
 // publishEntries writes committed log entries to commit channel and returns
 // whether all entries could be published.
 func (rc *raftNode) publishEntries(ents []raftpb.Entry) bool {
 	for i := range ents {
 		switch ents[i].Type {
 		case raftpb.EntryNormal:
-			// 正常的消息
 			if len(ents[i].Data) == 0 {
 				// ignore empty messages
 				break
 			}
 			s := string(ents[i].Data)
 			select {
-			// commit 过的消息投递队列，切协程处理
-			// kvstore.readCommits 执行下一站处理，业务上的 apply
 			case rc.commitC <- &s:
 			case <-rc.stopc:
 				return false
 			}
 
 		case raftpb.EntryConfChange:
-			// 配置变更消息
 			var cc raftpb.ConfChange
 			cc.Unmarshal(ents[i].Data)
-			// 应用配置变更信息（比如，初始化的时候，会有 ConfChangeAddNode 的 entry ）
-			log.Printf("publish Entryies %v\n", cc)
 			rc.confState = *rc.node.ApplyConfChange(cc)
 			switch cc.Type {
 			case raftpb.ConfChangeAddNode:
@@ -193,7 +173,6 @@ func (rc *raftNode) publishEntries(ents []raftpb.Entry) bool {
 			}
 		}
 
-		// 这些已经 commit 过的 entry 应用完之后，更新 appliedIndex
 		// after commit, update appliedIndex
 		rc.appliedIndex = ents[i].Index
 
@@ -320,7 +299,7 @@ func (rc *raftNode) startRaft() {
 		ClusterID:   0x1000,
 		Raft:        rc,
 		ServerStats: stats.NewServerStats("", ""),
-		LeaderStats: stats.NewLeaderStats(zap.NewExample(), strconv.Itoa(rc.id)),
+		LeaderStats: stats.NewLeaderStats(strconv.Itoa(rc.id)),
 		ErrorC:      make(chan error),
 	}
 
@@ -367,11 +346,9 @@ func (rc *raftNode) publishSnapshot(snapshotToSave raftpb.Snapshot) {
 	rc.appliedIndex = snapshotToSave.Metadata.Index
 }
 
-// 日志留存阈值，指导压缩的量
 var snapshotCatchUpEntriesN uint64 = 10000
 
 func (rc *raftNode) maybeTriggerSnapshot() {
-	// 如果距离上次快照超过一个数量区间，那么就考虑快照，这样就可以释放一部分空间；
 	if rc.appliedIndex-rc.snapshotIndex <= rc.snapCount {
 		return
 	}
@@ -381,7 +358,6 @@ func (rc *raftNode) maybeTriggerSnapshot() {
 	if err != nil {
 		log.Panic(err)
 	}
-	// 创建一个快照，快照属于已经调用 rc.getSnapshot 生成了
 	snap, err := rc.raftStorage.CreateSnapshot(rc.appliedIndex, &rc.confState, data)
 	if err != nil {
 		panic(err)
@@ -394,7 +370,6 @@ func (rc *raftNode) maybeTriggerSnapshot() {
 	if rc.appliedIndex > snapshotCatchUpEntriesN {
 		compactIndex = rc.appliedIndex - snapshotCatchUpEntriesN
 	}
-	// 打了快照之后，进行日志回收, 删除掉快照以前的日志
 	if err := rc.raftStorage.Compact(compactIndex); err != nil {
 		panic(err)
 	}
@@ -403,8 +378,6 @@ func (rc *raftNode) maybeTriggerSnapshot() {
 	rc.snapshotIndex = rc.appliedIndex
 }
 
-// 业务侧的封装
-// 消息链：业务 -> proposeC -> node.Propose
 func (rc *raftNode) serveChannels() {
 	snap, err := rc.raftStorage.Snapshot()
 	if err != nil {
@@ -429,9 +402,7 @@ func (rc *raftNode) serveChannels() {
 				if !ok {
 					rc.proposeC = nil
 				} else {
-					log.Printf("prop: %v\n", prop)
 					// blocks until accepted by raft state machine
-					// 阻塞等待，直到被 raft 状态机 accept
 					rc.node.Propose(context.TODO(), []byte(prop))
 				}
 
@@ -441,7 +412,6 @@ func (rc *raftNode) serveChannels() {
 				} else {
 					confChangeCount++
 					cc.ID = confChangeCount
-					// 配置变更信息
 					rc.node.ProposeConfChange(context.TODO(), cc)
 				}
 			}
@@ -450,41 +420,27 @@ func (rc *raftNode) serveChannels() {
 		close(rc.stopc)
 	}()
 
-	// 业务侧使用 loop 循环，控制状态机，掌握状态机的驱动；
-	// 也就是说，状态机的驱动也是业务侧组装起来的；
 	// event loop on raft state machine updates
 	for {
 		select {
 		case <-ticker.C:
-			// 滴答计时器，监听 ticker 时间，并通知 raft StateMachine
 			rc.node.Tick()
 
-		// 监听待处理的 Ready，并处理
-		// entry 先通过 wal 日志写入持久化存储，然后投入 commit channel 队列
 		// store raft entries to wal, then publish over commit channel
 		case rd := <-rc.node.Ready():
-			// 还在内存未持久化的需要通过 wal 模块持久化到磁盘
 			rc.wal.Save(rd.HardState, rd.Entries)
 			if !raft.IsEmptySnap(rd.Snapshot) {
 				rc.saveSnap(rd.Snapshot)
 				rc.raftStorage.ApplySnapshot(rd.Snapshot)
 				rc.publishSnapshot(rd.Snapshot)
 			}
-			// 添加到内存存储
 			rc.raftStorage.Append(rd.Entries)
-			// 发送到远端节点，发网络这个也是抽离出来的，message 里面标识了节点去向
 			rc.transport.Send(rd.Messages)
-			// rd.CommittedEntries 作为消息状态机的输出，输出完之后，会传递给最外层的 commitC channel
 			if ok := rc.publishEntries(rc.entriesToApply(rd.CommittedEntries)); !ok {
 				rc.stop()
 				return
 			}
-
-			// 尝试看是否可以快照
 			rc.maybeTriggerSnapshot()
-
-			// 前进吧，状态机
-			// 通知 raft StateMachine 运转，返回新的待处理的 Ready
 			rc.node.Advance()
 
 		case err := <-rc.transport.ErrorC:
@@ -518,7 +474,6 @@ func (rc *raftNode) serveRaft() {
 	close(rc.httpdonec)
 }
 
-// 处理网络发过来的消息
 func (rc *raftNode) Process(ctx context.Context, m raftpb.Message) error {
 	return rc.node.Step(ctx, m)
 }

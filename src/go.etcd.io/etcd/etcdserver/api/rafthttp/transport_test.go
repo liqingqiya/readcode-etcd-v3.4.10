@@ -20,13 +20,12 @@ import (
 	"testing"
 	"time"
 
-	stats "go.etcd.io/etcd/v3/etcdserver/api/v2stats"
-	"go.etcd.io/etcd/v3/pkg/testutil"
-	"go.etcd.io/etcd/v3/pkg/types"
-	"go.etcd.io/etcd/v3/raft/raftpb"
+	stats "go.etcd.io/etcd/etcdserver/api/v2stats"
+	"go.etcd.io/etcd/pkg/testutil"
+	"go.etcd.io/etcd/pkg/types"
+	"go.etcd.io/etcd/raft/raftpb"
 
 	"github.com/xiang90/probing"
-	"go.uber.org/zap"
 )
 
 // TestTransportSend tests that transport can send messages using correct
@@ -96,7 +95,7 @@ func TestTransportCutMend(t *testing.T) {
 }
 
 func TestTransportAdd(t *testing.T) {
-	ls := stats.NewLeaderStats(zap.NewExample(), "")
+	ls := stats.NewLeaderStats("")
 	tr := &Transport{
 		LeaderStats:    ls,
 		streamRt:       &roundTripperRecorder{},
@@ -127,7 +126,7 @@ func TestTransportAdd(t *testing.T) {
 
 func TestTransportRemove(t *testing.T) {
 	tr := &Transport{
-		LeaderStats:    stats.NewLeaderStats(zap.NewExample(), ""),
+		LeaderStats:    stats.NewLeaderStats(""),
 		streamRt:       &roundTripperRecorder{},
 		peers:          make(map[types.ID]Peer),
 		pipelineProber: probing.NewProber(nil),
@@ -161,7 +160,7 @@ func TestTransportErrorc(t *testing.T) {
 	errorc := make(chan error, 1)
 	tr := &Transport{
 		Raft:           &fakeRaft{},
-		LeaderStats:    stats.NewLeaderStats(zap.NewExample(), ""),
+		LeaderStats:    stats.NewLeaderStats(""),
 		ErrorC:         errorc,
 		streamRt:       newRespRoundTripper(http.StatusForbidden, nil),
 		pipelineRt:     newRespRoundTripper(http.StatusForbidden, nil),

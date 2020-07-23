@@ -18,7 +18,7 @@ import (
 	"flag"
 	"strings"
 
-	"go.etcd.io/etcd/v3/raft/raftpb"
+	"go.etcd.io/etcd/raft/raftpb"
 )
 
 func main() {
@@ -28,7 +28,6 @@ func main() {
 	join := flag.Bool("join", false, "join an existing cluster")
 	flag.Parse()
 
-	// proposeC 这个 channel 是用来和 raft 交互的管道，用来给业务传递输入进 raft 状态机，所以是 业务侧来 new，然后传递给 raft 内部；
 	proposeC := make(chan string)
 	defer close(proposeC)
 	confChangeC := make(chan raftpb.ConfChange)
@@ -37,8 +36,6 @@ func main() {
 	// raft provides a commit stream for the proposals from the http api
 	var kvs *kvstore
 	getSnapshot := func() ([]byte, error) { return kvs.getSnapshot() }
-	// commitC 是用来给 raft 状态机传递数据出来用的，是输出，是已经被 raft 状态机 commit 过的数据，业务侧拿来用；
-	// snapshotterReady 也是传入输出用的，所以类似；
 	commitC, errorC, snapshotterReady := newRaftNode(*id, strings.Split(*cluster, ","), *join, getSnapshot, proposeC, confChangeC)
 
 	kvs = newKVStore(<-snapshotterReady, proposeC, commitC, errorC)

@@ -17,7 +17,7 @@ package raft
 import (
 	"errors"
 
-	pb "go.etcd.io/etcd/v3/raft/raftpb"
+	pb "go.etcd.io/etcd/raft/raftpb"
 )
 
 // Bootstrap initializes the RawNode for first use by appending configuration
@@ -27,7 +27,6 @@ import (
 // It is recommended that instead of calling this method, applications bootstrap
 // their state manually by setting up a Storage that has a first index > 1 and
 // which stores the desired ConfState as its InitialState.
-// 初始化
 func (rn *RawNode) Bootstrap(peers []Peer) error {
 	if len(peers) == 0 {
 		return errors.New("must provide at least one peer to Bootstrap")
@@ -73,7 +72,6 @@ func (rn *RawNode) Bootstrap(peers []Peer) error {
 	//
 	// TODO(bdarnell): These entries are still unstable; do we need to preserve
 	// the invariant that committed < unstable?
-	// 初始化的时候，初始化 raftLog.committed 的值
 	rn.raft.raftLog.committed = uint64(len(ents))
 	for _, peer := range peers {
 		rn.raft.applyConfChange(pb.ConfChange{NodeID: peer.ID, Type: pb.ConfChangeAddNode}.AsV2())

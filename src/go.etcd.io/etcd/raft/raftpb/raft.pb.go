@@ -83,25 +83,25 @@ func (EntryType) EnumDescriptor() ([]byte, []int) { return fileDescriptorRaft, [
 type MessageType int32
 
 const (
-	MsgHup            MessageType = 0  // 本地消息：tick: tickElection 产生；选举用消息，用来触发 pre-vote 或者 vote 的消息，由 followers 和 candidates 超时生产
-	MsgBeat           MessageType = 1  // 本地消息：tick: tickHeartbeat 产生；心跳，触发发给 peers 的 Msgheartbeat。由 leader 定期生产的一种消息，tick
-	MsgProp           MessageType = 2  // 本地消息：Propose 产生的本地消息，触发 MsgApp 消息
-	MsgApp            MessageType = 3  // 非本地：oplog 复制/配置变更的请求消息
-	MsgAppResp        MessageType = 4  // 非本地：oplog 复制 response 消息
-	MsgVote           MessageType = 5  // 非本地：投票的消息
-	MsgVoteResp       MessageType = 6  // 非本地：投票的响应
-	MsgSnap           MessageType = 7  // 非本地：
-	MsgHeartbeat      MessageType = 8  // 非本地：心跳包，Leader 向 follower 发送
-	MsgHeartbeatResp  MessageType = 9  // 非本地：心跳响应包，follower 回应给 Leader 的
-	MsgUnreachable    MessageType = 10 // 本地消息：EtcdServer 通过这个消息告诉 raft 状态机某个 Follower 不可达，让其发送 message 方式由 pipeline 切换成 ping-pong 模式
-	MsgSnapStatus     MessageType = 11 // 本地消息：EtcdServer 通过这个消息告诉 raft 状态机 snapshot 发送成功还是失败
-	MsgCheckQuorum    MessageType = 12 // 本地消息：用于 Lease read
-	MsgTransferLeader MessageType = 13 // 本地消息：
-	MsgTimeoutNow     MessageType = 14 // 非本地：
-	MsgReadIndex      MessageType = 15 // 非本地：
-	MsgReadIndexResp  MessageType = 16 // 非本地：
-	MsgPreVote        MessageType = 17 // 非本地：预投票的消息
-	MsgPreVoteResp    MessageType = 18 // 非本地：预投票的响应
+	MsgHup            MessageType = 0
+	MsgBeat           MessageType = 1
+	MsgProp           MessageType = 2
+	MsgApp            MessageType = 3
+	MsgAppResp        MessageType = 4
+	MsgVote           MessageType = 5
+	MsgVoteResp       MessageType = 6
+	MsgSnap           MessageType = 7
+	MsgHeartbeat      MessageType = 8
+	MsgHeartbeatResp  MessageType = 9
+	MsgUnreachable    MessageType = 10
+	MsgSnapStatus     MessageType = 11
+	MsgCheckQuorum    MessageType = 12
+	MsgTransferLeader MessageType = 13
+	MsgTimeoutNow     MessageType = 14
+	MsgReadIndex      MessageType = 15
+	MsgReadIndexResp  MessageType = 16
+	MsgPreVote        MessageType = 17
+	MsgPreVoteResp    MessageType = 18
 )
 
 var MessageType_name = map[int32]string{
@@ -257,10 +257,10 @@ func (x *ConfChangeType) UnmarshalJSON(data []byte) error {
 func (ConfChangeType) EnumDescriptor() ([]byte, []int) { return fileDescriptorRaft, []int{3} }
 
 type Entry struct {
-	Term             uint64    `protobuf:"varint,2,opt,name=Term" json:"Term"`                       // 该日志的对应的任期
-	Index            uint64    `protobuf:"varint,3,opt,name=Index" json:"Index"`                     // 日志的索引号（相对值，Index+snapshot.Metadata.Index 才是递增的绝对值）
-	Type             EntryType `protobuf:"varint,1,opt,name=Type,enum=raftpb.EntryType" json:"Type"` // 日志的类型
-	Data             []byte    `protobuf:"bytes,4,opt,name=Data" json:"Data,omitempty"`              // 日志内容
+	Term             uint64    `protobuf:"varint,2,opt,name=Term" json:"Term"`
+	Index            uint64    `protobuf:"varint,3,opt,name=Index" json:"Index"`
+	Type             EntryType `protobuf:"varint,1,opt,name=Type,enum=raftpb.EntryType" json:"Type"`
+	Data             []byte    `protobuf:"bytes,4,opt,name=Data" json:"Data,omitempty"`
 	XXX_unrecognized []byte    `json:"-"`
 }
 
@@ -269,7 +269,6 @@ func (m *Entry) String() string            { return proto.CompactTextString(m) }
 func (*Entry) ProtoMessage()               {}
 func (*Entry) Descriptor() ([]byte, []int) { return fileDescriptorRaft, []int{0} }
 
-// 元数据快照
 type SnapshotMetadata struct {
 	ConfState        ConfState `protobuf:"bytes,1,opt,name=conf_state,json=confState" json:"conf_state"`
 	Index            uint64    `protobuf:"varint,2,opt,name=index" json:"index"`
@@ -304,7 +303,7 @@ type Message struct {
 	Commit           uint64      `protobuf:"varint,8,opt,name=commit" json:"commit"`
 	Snapshot         Snapshot    `protobuf:"bytes,9,opt,name=snapshot" json:"snapshot"`
 	Reject           bool        `protobuf:"varint,10,opt,name=reject" json:"reject"`
-	RejectHint       uint64      `protobuf:"varint,11,opt,name=rejectHint" json:"rejectHint"` // follower 拒绝并且返回的 last index
+	RejectHint       uint64      `protobuf:"varint,11,opt,name=rejectHint" json:"rejectHint"`
 	Context          []byte      `protobuf:"bytes,12,opt,name=context" json:"context,omitempty"`
 	XXX_unrecognized []byte      `json:"-"`
 }
@@ -315,9 +314,9 @@ func (*Message) ProtoMessage()               {}
 func (*Message) Descriptor() ([]byte, []int) { return fileDescriptorRaft, []int{3} }
 
 type HardState struct {
-	Term             uint64 `protobuf:"varint,1,opt,name=term" json:"term"`     // 最近的任期号（term）
-	Vote             uint64 `protobuf:"varint,2,opt,name=vote" json:"vote"`     // 当前获得选票的候选人的id
-	Commit           uint64 `protobuf:"varint,3,opt,name=commit" json:"commit"` // 最近的被 commit 的日志编号
+	Term             uint64 `protobuf:"varint,1,opt,name=term" json:"term"`
+	Vote             uint64 `protobuf:"varint,2,opt,name=vote" json:"vote"`
+	Commit           uint64 `protobuf:"varint,3,opt,name=commit" json:"commit"`
 	XXX_unrecognized []byte `json:"-"`
 }
 
@@ -326,16 +325,13 @@ func (m *HardState) String() string            { return proto.CompactTextString(
 func (*HardState) ProtoMessage()               {}
 func (*HardState) Descriptor() ([]byte, []int) { return fileDescriptorRaft, []int{4} }
 
-// 集群配置状态
 type ConfState struct {
-	// 投票的人
 	// The voters in the incoming config. (If the configuration is not joint,
 	// then the outgoing config is empty).
 	Voters []uint64 `protobuf:"varint,1,rep,name=voters" json:"voters,omitempty"`
 	// The learners in the incoming config.
 	Learners []uint64 `protobuf:"varint,2,rep,name=learners" json:"learners,omitempty"`
 	// The voters in the outgoing config.
-	// 投票的人 ?
 	VotersOutgoing []uint64 `protobuf:"varint,3,rep,name=voters_outgoing,json=votersOutgoing" json:"voters_outgoing,omitempty"`
 	// The nodes that will become learners when the outgoing config is removed.
 	// These nodes are necessarily currently in nodes_joint (or they would have

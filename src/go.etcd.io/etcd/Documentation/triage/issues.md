@@ -1,6 +1,4 @@
----
-title: Issue Triage Guidelines
----
+# Issue Triage Guidelines
 
 ## Purpose
 

@@ -15,8 +15,8 @@
 package confchange
 
 import (
-	pb "go.etcd.io/etcd/v3/raft/raftpb"
-	"go.etcd.io/etcd/v3/raft/tracker"
+	pb "go.etcd.io/etcd/raft/raftpb"
+	"go.etcd.io/etcd/raft/tracker"
 )
 
 // toConfChangeSingle translates a conf state into 1) a slice of operations creating
@@ -28,7 +28,7 @@ func toConfChangeSingle(cs pb.ConfState) (out []pb.ConfChangeSingle, in []pb.Con
 	// voters=(1 2 3) learners=(5) outgoing=(1 2 4 6) learners_next=(4)
 	//
 	// This means that before entering the joint config, the configuration
-	// had voters (1 2 4 6) and perhaps some learners that are already gone.
+	// had voters (1 2 4) and perhaps some learners that are already gone.
 	// The new set of voters is (1 2 3), i.e. (1 2) were kept around, and (4 6)
 	// are no longer voters; however 4 is poised to become a learner upon leaving
 	// the joint state.
@@ -97,7 +97,6 @@ func toConfChangeSingle(cs pb.ConfState) (out []pb.ConfChangeSingle, in []pb.Con
 }
 
 func chain(chg Changer, ops ...func(Changer) (tracker.Config, tracker.ProgressMap, error)) (tracker.Config, tracker.ProgressMap, error) {
-	// 链式处理 chg，不断的更新 chg.Tracker.Config, chg.Tracker.Progress
 	for _, op := range ops {
 		cfg, prs, err := op(chg)
 		if err != nil {
@@ -117,7 +116,6 @@ func chain(chg Changer, ops ...func(Changer) (tracker.Config, tracker.ProgressMa
 // the Changer only needs a ProgressMap (not a whole Tracker) at which point
 // this can just take LastIndex and MaxInflight directly instead and cook up
 // the results from that alone.
-// 返回 Config 和 ProgressMap 的两个配置
 func Restore(chg Changer, cs pb.ConfState) (tracker.Config, tracker.ProgressMap, error) {
 	outgoing, incoming := toConfChangeSingle(cs)
 

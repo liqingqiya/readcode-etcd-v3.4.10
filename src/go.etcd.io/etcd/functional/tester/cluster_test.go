@@ -19,7 +19,7 @@ import (
 	"sort"
 	"testing"
 
-	"go.etcd.io/etcd/v3/functional/rpcpb"
+	"go.etcd.io/etcd/functional/rpcpb"
 
 	"go.uber.org/zap"
 )
@@ -64,6 +64,7 @@ func Test_read(t *testing.T) {
 					InitialCorruptCheck: true,
 					Logger:              "zap",
 					LogOutputs:          []string{"/tmp/etcd-functional-1/etcd.log"},
+					Debug:               true,
 				},
 				ClientCertData:      "",
 				ClientCertPath:      "",
@@ -116,6 +117,7 @@ func Test_read(t *testing.T) {
 					InitialCorruptCheck: true,
 					Logger:              "zap",
 					LogOutputs:          []string{"/tmp/etcd-functional-2/etcd.log"},
+					Debug:               true,
 				},
 				ClientCertData:      "",
 				ClientCertPath:      "",
@@ -168,6 +170,7 @@ func Test_read(t *testing.T) {
 					InitialCorruptCheck: true,
 					Logger:              "zap",
 					LogOutputs:          []string{"/tmp/etcd-functional-3/etcd.log"},
+					Debug:               true,
 				},
 				ClientCertData:      "",
 				ClientCertPath:      "",
