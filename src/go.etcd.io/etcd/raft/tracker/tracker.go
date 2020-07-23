@@ -93,6 +93,7 @@ func (c Config) String() string {
 	return buf.String()
 }
 
+// 完全拷贝一份数据出来，内存和之前完全不一样
 // Clone returns a copy of the Config that shares no memory with the original.
 func (c *Config) Clone() Config {
 	clone := func(m map[uint64]struct{}) map[uint64]struct{} {
@@ -105,6 +106,7 @@ func (c *Config) Clone() Config {
 		}
 		return mm
 	}
+	// 主要复制 Voters，Learners，LearnersNext 三个角色，这三个都是 map 结构，深度拷贝；
 	return Config{
 		Voters:       quorum.JointConfig{clone(c.Voters[0]), clone(c.Voters[1])},
 		Learners:     clone(c.Learners),
@@ -149,6 +151,7 @@ func MakeProgressTracker(maxInflight int) ProgressTracker {
 
 // ConfState returns a ConfState representing the active configuration.
 func (p *ProgressTracker) ConfState() pb.ConfState {
+	// 返回配置状态
 	return pb.ConfState{
 		Voters:         p.Voters[0].Slice(),
 		VotersOutgoing: p.Voters[1].Slice(),

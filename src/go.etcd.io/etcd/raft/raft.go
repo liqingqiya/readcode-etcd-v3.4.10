@@ -1586,18 +1586,21 @@ func (r *raft) promotable() bool {
 	return pr != nil && !pr.IsLearner
 }
 
+// 配置变更
 func (r *raft) applyConfChange(cc pb.ConfChangeV2) pb.ConfState {
 	cfg, prs, err := func() (tracker.Config, tracker.ProgressMap, error) {
+		// 创建 changer 对象
 		changer := confchange.Changer{
 			Tracker:   r.prs,
 			LastIndex: r.raftLog.lastIndex(),
 		}
-		//
-		if cc.LeaveJoint() {
+		if cc.LeaveJoint() { // 如果属于 Leave joint 的场景
 			return changer.LeaveJoint()
-		} else if autoLeave, ok := cc.EnterJoint(); ok {
+		} else if autoLeave, ok := cc.EnterJoint(); ok { // 如果是 entry joint 的场景
 			return changer.EnterJoint(autoLeave, cc.Changes...)
 		}
+		// 简单应用配置，这种一般是单节点的配置变更，不用走 joint consensus 变更算法
+		// 这里 cc.Changes 为 1 的数组
 		return changer.Simple(cc.Changes...)
 	}()
 
@@ -1606,6 +1609,7 @@ func (r *raft) applyConfChange(cc pb.ConfChangeV2) pb.ConfState {
 		panic(err)
 	}
 
+	// 切换使用新的配置
 	return r.switchToConfig(cfg, prs)
 }
 
@@ -1622,12 +1626,15 @@ func (r *raft) switchToConfig(cfg tracker.Config, prs tracker.ProgressMap) pb.Co
 
 	r.logger.Infof("%x switched to configuration %s", r.id, r.prs.Config)
 	cs := r.prs.ConfState()
+	// 取进度
 	pr, ok := r.prs.Progress[r.id]
 
+	// 如果是 learner 角色（满足进度表里有进度，并且打上了 isLearner 标识）
 	// Update whether the node itself is a learner, resetting to false when the
 	// node is removed.
 	r.isLearner = ok && pr.IsLearner
 
+	// 如果进度表里没有，或者有 islearner 标识，那么看是否是 leader 的角色，那么直接就退出了
 	if (!ok || r.isLearner) && r.state == StateLeader {
 		// This node is leader and was removed or demoted. We prevent demotions
 		// at the time writing but hypothetically we handle them the same way as
@@ -1644,9 +1651,11 @@ func (r *raft) switchToConfig(cfg tracker.Config, prs tracker.ProgressMap) pb.Co
 	// The remaining steps only make sense if this node is the leader and there
 	// are other nodes.
 	if r.state != StateLeader || len(cs.Voters) == 0 {
+		// 如果不是 leader 或者 cs.Voters 为空，那么从这里出去了
 		return cs
 	}
 
+	// 走到着，表示是 leader，如果有可以 commit 的变更，则广播出去
 	if r.maybeCommit() {
 		// If the configuration change means that more entries are committed now,
 		// broadcast/append to everyone in the updated config.

@@ -182,6 +182,7 @@ func (c MajorityConfig) CommittedIndex(l AckedIndexer) Index {
 	return Index(srt[pos])
 }
 
+// 当前的集群配置下，投了票的节点情况；
 // 选举结果的统计，这个函数就是一个唱票的实现
 // votes 参数标识投了票的人（true表示投了，false表示弃权）
 // VoteResult takes a mapping of voters to yes/no (true/false) votes and returns
