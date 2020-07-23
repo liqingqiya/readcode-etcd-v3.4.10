@@ -68,9 +68,9 @@ var (
 // generations:
 //    {empty} -> key SHOULD be removed.
 type keyIndex struct {
-	key         []byte
-	modified    revision // the main rev of the last modification
-	generations []generation
+	key         []byte       // 用户 key
+	modified    revision     // 最近一次修改；the main rev of the last modification
+	generations []generation // 多版本的历史修改保存在 generations 数组里
 }
 
 // put puts a revision to the keyIndex.

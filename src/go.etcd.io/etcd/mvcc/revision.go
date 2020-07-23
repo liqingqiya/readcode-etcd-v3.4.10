@@ -21,15 +21,18 @@ import "encoding/binary"
 // is a '_'. The last 8 bytes is the revision.sub in big-endian format.
 const revBytesLen = 8 + 1 + 8
 
+// 操作抽象，每一次操作叫做一次 revision
 // A revision indicates modification of the key-value space.
 // The set of changes that share same main revision changes the key-value space atomically.
 type revision struct {
+	// 每个事务都有唯一的 main ID，全局递增不重复，同一个事务里的多个操作共享这个 main ID
 	// main is the main revision of a set of changes that happen atomically.
 	main int64
 
 	// sub is the sub revision of a change in a set of changes that happen
 	// atomically. Each change has different increasing sub revision in that
 	// set.
+	// 一个事务内连续的多个修改操作会被从 0 递增编号，这个编号就是 sub ID
 	sub int64
 }
 

@@ -37,6 +37,7 @@ type index interface {
 	KeyIndex(ki *keyIndex) *keyIndex
 }
 
+// btree 的节点结构
 type treeIndex struct {
 	sync.RWMutex
 	tree *btree.BTree
