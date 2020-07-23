@@ -76,6 +76,7 @@ type apply struct {
 	notifyc chan struct{}
 }
 
+// etcd server 业务封装的状态机处理
 type raftNode struct {
 	lg *zap.Logger
 

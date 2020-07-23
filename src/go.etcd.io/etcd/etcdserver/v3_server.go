@@ -126,8 +126,10 @@ func (s *EtcdServer) Range(ctx context.Context, r *pb.RangeRequest) (*pb.RangeRe
 	return resp, err
 }
 
+// etcd server 提供的 put 接口
 func (s *EtcdServer) Put(ctx context.Context, r *pb.PutRequest) (*pb.PutResponse, error) {
 	ctx = context.WithValue(ctx, traceutil.StartTimeKey, time.Now())
+	// 调用 raft 状态机处理
 	resp, err := s.raftRequest(ctx, pb.InternalRaftRequest{Put: r})
 	if err != nil {
 		return nil, err
@@ -607,8 +609,12 @@ func (s *EtcdServer) doSerialize(ctx context.Context, chk func(*auth.AuthInfo) e
 }
 
 func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.InternalRaftRequest) (*applyResult, error) {
+	s.lg.Info("v3 process Request ...")
+	// apply 游标
 	ai := s.getAppliedIndex()
+	// commited 游标
 	ci := s.getCommittedIndex()
+	// 如果 apply 速度大大落后 commit 的游标，那么直接返回失败；
 	if ci > ai+maxGapBetweenApplyAndCommitIndex {
 		return nil, ErrTooManyRequests
 	}
@@ -631,6 +637,7 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 		return nil, err
 	}
 
+	// 对用户的数据大小有限制；
 	if len(data) > int(s.Cfg.MaxRequestBytes) {
 		return nil, ErrRequestTooLarge
 	}
@@ -645,16 +652,19 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 	defer cancel()
 
 	start := time.Now()
+	// 发起 Propose 请求，从这里开始就是走进 raft 状态机了；
 	err = s.r.Propose(cctx, data)
 	if err != nil {
 		proposalsFailed.Inc()
 		s.w.Trigger(id, nil) // GC wait
 		return nil, err
 	}
+	// 计量统计
 	proposalsPending.Inc()
 	defer proposalsPending.Dec()
 
 	select {
+	// 等待业务完成的结果
 	case x := <-ch:
 		return x.(*applyResult), nil
 	case <-cctx.Done():

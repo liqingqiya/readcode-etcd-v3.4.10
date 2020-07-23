@@ -117,6 +117,7 @@ func (rn *RawNode) Step(m pb.Message) error {
 	return ErrStepPeerNotFound
 }
 
+// 外面就是调用这个函数来获取 raft 状态机的输出；
 // Ready returns the outstanding work that the application needs to handle. This
 // includes appending and applying entries or a snapshot, updating the HardState,
 // and sending messages. The returned Ready() *must* be handled and subsequently
