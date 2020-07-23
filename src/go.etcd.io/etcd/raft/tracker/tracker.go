@@ -25,6 +25,7 @@ import (
 
 // Config reflects the configuration tracked in a ProgressTracker.
 type Config struct {
+	// 参与选举的人
 	Voters quorum.JointConfig
 	// AutoLeave is true if the configuration is joint and a transition to the
 	// incoming configuration should be carried out automatically by Raft when
@@ -92,6 +93,7 @@ func (c Config) String() string {
 	return buf.String()
 }
 
+// 完全拷贝一份数据出来，内存和之前完全不一样
 // Clone returns a copy of the Config that shares no memory with the original.
 func (c *Config) Clone() Config {
 	clone := func(m map[uint64]struct{}) map[uint64]struct{} {
@@ -104,6 +106,7 @@ func (c *Config) Clone() Config {
 		}
 		return mm
 	}
+	// 主要复制 Voters，Learners，LearnersNext 三个角色，这三个都是 map 结构，深度拷贝；
 	return Config{
 		Voters:       quorum.JointConfig{clone(c.Voters[0]), clone(c.Voters[1])},
 		Learners:     clone(c.Learners),
@@ -111,16 +114,20 @@ func (c *Config) Clone() Config {
 	}
 }
 
+// 复制进度的一个抽象
 // ProgressTracker tracks the currently active configuration and the information
 // known about the nodes and learners in it. In particular, it tracks the match
 // index for each peer which in turn allows reasoning about the committed index.
 type ProgressTracker struct {
 	Config
 
+	// 所有的 peer 的 Progress
 	Progress ProgressMap
 
+	//
 	Votes map[uint64]bool
 
+	// 最大 Inflights 的数量
 	MaxInflight int
 }
 
@@ -144,6 +151,7 @@ func MakeProgressTracker(maxInflight int) ProgressTracker {
 
 // ConfState returns a ConfState representing the active configuration.
 func (p *ProgressTracker) ConfState() pb.ConfState {
+	// 返回配置状态
 	return pb.ConfState{
 		Voters:         p.Voters[0].Slice(),
 		VotersOutgoing: p.Voters[1].Slice(),
@@ -163,18 +171,26 @@ type matchAckIndexer map[uint64]*Progress
 
 var _ quorum.AckedIndexer = matchAckIndexer(nil)
 
+// matchAckIndexer 实现了 AckedIndexer 的 AckedIndex（）接口方法，而 Voters.CommittedIndex() 的参数是 AckedIndexer 类型对象。
+// AckedIndex（）返回指定 ID 的 Peer 接收的最大日志索引，就是 Progress.Match
 // AckedIndex implements IndexLookuper.
 func (l matchAckIndexer) AckedIndex(id uint64) (quorum.Index, bool) {
 	pr, ok := l[id]
 	if !ok {
 		return 0, false
 	}
+	// pr.Match 就是 peer 回复给 leader 确认收到的最大日志索引
+	// Votes.CommitetedIndex() 函数会用到每个 peer 的 Progress.Match 来计算 raft 当前已经递交的最大日志索引
 	return quorum.Index(pr.Match), true
 }
 
+// 根据投票成员已经确认的返回已递交的最大日志索引。Committed() 是从整个集群的角度计算出已递交的最大日志索引。
+// 因为 leader 是通过 Progress 跟踪每个 follower 的日志进度的， follower 之间还存在这种差异是的彼此进度不同，
+// 这个函数就是处理这种情况的
 // Committed returns the largest log index known to be committed based on what
 // the voting members of the group have acknowledged.
 func (p *ProgressTracker) Committed() uint64 {
+	// 调用 Voters.CommittedIndex()
 	return uint64(p.Voters.CommittedIndex(matchAckIndexer(p.Progress)))
 }
 
@@ -187,12 +203,14 @@ func insertionSort(sl []uint64) {
 	}
 }
 
+// Visit 接受一个闭包函数作为参数，Visit 就是一个遍历函数实现，遍历所有的 peers，一次调用 f；
 // Visit invokes the supplied closure for all tracked progresses in stable order.
 func (p *ProgressTracker) Visit(f func(id uint64, pr *Progress)) {
 	n := len(p.Progress)
 	// We need to sort the IDs and don't want to allocate since this is hot code.
 	// The optimization here mirrors that in `(MajorityConfig).CommittedIndex`,
 	// see there for details.
+	// 写怎么复杂？ 为了就是一个性能优化，长度较小的，分配在栈上，较大的分配在堆上；值得吗。
 	var sl [7]uint64
 	ids := sl[:]
 	if len(sl) >= n {
@@ -200,11 +218,13 @@ func (p *ProgressTracker) Visit(f func(id uint64, pr *Progress)) {
 	} else {
 		ids = make([]uint64, n)
 	}
+	// 遍历 peers 赋值进度
 	for id := range p.Progress {
 		n--
 		ids[n] = id
 	}
 	insertionSort(ids)
+	// id, Progress 作为参数传入，依次处理
 	for _, id := range ids {
 		f(id, p.Progress[id])
 	}

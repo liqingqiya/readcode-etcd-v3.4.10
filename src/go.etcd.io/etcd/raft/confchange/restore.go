@@ -97,6 +97,7 @@ func toConfChangeSingle(cs pb.ConfState) (out []pb.ConfChangeSingle, in []pb.Con
 }
 
 func chain(chg Changer, ops ...func(Changer) (tracker.Config, tracker.ProgressMap, error)) (tracker.Config, tracker.ProgressMap, error) {
+	// 链式处理 chg，不断的更新 chg.Tracker.Config, chg.Tracker.Progress
 	for _, op := range ops {
 		cfg, prs, err := op(chg)
 		if err != nil {
@@ -116,6 +117,7 @@ func chain(chg Changer, ops ...func(Changer) (tracker.Config, tracker.ProgressMa
 // the Changer only needs a ProgressMap (not a whole Tracker) at which point
 // this can just take LastIndex and MaxInflight directly instead and cook up
 // the results from that alone.
+// 返回 Config 和 ProgressMap 的两个配置
 func Restore(chg Changer, cs pb.ConfState) (tracker.Config, tracker.ProgressMap, error) {
 	outgoing, incoming := toConfChangeSingle(cs)
 

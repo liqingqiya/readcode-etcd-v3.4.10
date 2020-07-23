@@ -22,8 +22,12 @@ import pb "go.etcd.io/etcd/raft/raftpb"
 // might need to truncate the log before persisting unstable.entries.
 type unstable struct {
 	// the incoming unstable snapshot, if any.
+	// 快照数据，leader 传递过来的消息，应用完置空（初始化为空）
 	snapshot *pb.Snapshot
 	// all entries that have not yet been written to storage.
+	// 还在内存中的 entry，还没持久化了，raftNode 的状态机上来第一步就是把这个持久化掉；
+	// 那么这个数据哪里来的？举个例子：网络中的数据上来第一步就是 append 到 raftLog
+	// 之后，raft.entries 会到 Ready 结构里，输出出去，外面的状态机第一个步骤就是把 Ready.entries 落盘；
 	entries []pb.Entry
 	offset  uint64
 
@@ -72,6 +76,7 @@ func (u *unstable) maybeTerm(i uint64) (uint64, bool) {
 	return u.entries[i-u.offset].Term, true
 }
 
+// 清理 ( index, term ) 之前的内存日志（这些日志理论上是已经被持久化了的，除非业务自己犯傻）
 func (u *unstable) stableTo(i, t uint64) {
 	gt, ok := u.maybeTerm(i)
 	if !ok {
@@ -112,19 +117,24 @@ func (u *unstable) stableSnapTo(i uint64) {
 	}
 }
 
+// 恢复快照
 func (u *unstable) restore(s pb.Snapshot) {
 	u.offset = s.Metadata.Index + 1
 	u.entries = nil
+	// unstable.snapshot 赋值的地方只有这里，也就是说 unstable.snapshot 只能从主接受 Snap 消息
 	u.snapshot = &s
 }
 
 func (u *unstable) truncateAndAppend(ents []pb.Entry) {
 	after := ents[0].Index
 	switch {
+	// 常规操作，after 这个位置，通过计算就刚好是 offset + len(entries), offset 是指向 storage 的；
 	case after == u.offset+uint64(len(u.entries)):
 		// after is the next index in the u.entries
 		// directly append
 		u.entries = append(u.entries, ents...)
+		// 如果 after 还比 u.offset ( storage 的最后一个位置 ) 还小，那么说明整个 unstable 都可以丢掉了，直接替换掉，
+		// 然后 offset 设置成较小的 after，这种应该是比较异常的场景
 	case after <= u.offset:
 		u.logger.Infof("replace the unstable entries from index %d", after)
 		// The log is being truncated to before our current offset
@@ -132,6 +142,7 @@ func (u *unstable) truncateAndAppend(ents []pb.Entry) {
 		u.offset = after
 		u.entries = ents
 	default:
+		// 这种情况属于 after 在 [ offset , offset+len() ] 直接的位置，所以做的是截断的操作：
 		// truncate to after and copy to u.entries
 		// then append
 		u.logger.Infof("truncate the unstable entries before index %d", after)

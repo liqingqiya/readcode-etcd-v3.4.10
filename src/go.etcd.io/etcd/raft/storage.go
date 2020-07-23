@@ -82,6 +82,7 @@ type MemoryStorage struct {
 	hardState pb.HardState
 	snapshot  pb.Snapshot
 	// ents[i] has raft log position i+snapshot.Metadata.Index
+	// 持久化了的日志，由于 snapshot 之后，以 snapshot 作为新的起点，所以 ents[i] 的位置是 i + snapshot.Metadata.Index
 	ents []pb.Entry
 }
 
@@ -89,6 +90,7 @@ type MemoryStorage struct {
 func NewMemoryStorage() *MemoryStorage {
 	return &MemoryStorage{
 		// When starting from scratch populate the list with a dummy entry at term zero.
+		// 这个非常重要，开始的时候，在开头填充了一个 dummy entry；这个会影响到 first index，last index，这个注意了；
 		ents: make([]pb.Entry, 1),
 	}
 }
@@ -118,6 +120,7 @@ func (ms *MemoryStorage) Entries(lo, hi, maxSize uint64) ([]pb.Entry, error) {
 		raftLogger.Panicf("entries' hi(%d) is out of bound lastindex(%d)", hi, ms.lastIndex())
 	}
 	// only contains dummy entries.
+	// 最开始的是一个 dummy entry，如果只有这一个，那么说明是空的；
 	if len(ms.ents) == 1 {
 		return nil, ErrUnavailable
 	}
@@ -158,7 +161,12 @@ func (ms *MemoryStorage) FirstIndex() (uint64, error) {
 	return ms.firstIndex(), nil
 }
 
+/*
+	0			  first(1)	last(2)
+|--DumpEntry--|--entry--|--entry--|
+*/
 func (ms *MemoryStorage) firstIndex() uint64 {
+	// Storage 的 index 从 1 开始编码的, message 的 index 从 0 开始编码
 	return ms.ents[0].Index + 1
 }
 
@@ -187,6 +195,11 @@ func (ms *MemoryStorage) ApplySnapshot(snap pb.Snapshot) error {
 	return nil
 }
 
+// 快照数据包含三部分：
+// 1. 业务快照数据（由业务自己生成）
+// 2. raft 的 index，term
+// 3. conf 配置信息
+
 // CreateSnapshot makes a snapshot which can be retrieved with Snapshot() and
 // can be used to reconstruct the state at that point.
 // If any configuration changes have been made since the last compaction,
@@ -198,20 +211,28 @@ func (ms *MemoryStorage) CreateSnapshot(i uint64, cs *pb.ConfState, data []byte)
 		return pb.Snapshot{}, ErrSnapOutOfDate
 	}
 
+	// snapshot 认为是新的起点，ms.ents[0].Index 认为是这个起点的 offset 也是没错的
+	// entry.Index 和 数组索引还是有区别的
 	offset := ms.ents[0].Index
 	if i > ms.lastIndex() {
 		raftLogger.Panicf("snapshot %d is out of bound lastindex(%d)", i, ms.lastIndex())
 	}
 
+	// 日志编号和任期也存入快照
+	// i 是相对值
 	ms.snapshot.Metadata.Index = i
+	// 指定位置的 term
 	ms.snapshot.Metadata.Term = ms.ents[i-offset].Term
 	if cs != nil {
+		// conf 配置也存入快照
 		ms.snapshot.Metadata.ConfState = *cs
 	}
+	// 业务的快照数据
 	ms.snapshot.Data = data
 	return ms.snapshot, nil
 }
 
+// 快照完之后，就可以释放合适的日志了
 // Compact discards all log entries prior to compactIndex.
 // It is the application's responsibility to not attempt to compact an index
 // greater than raftLog.applied.
@@ -219,15 +240,18 @@ func (ms *MemoryStorage) Compact(compactIndex uint64) error {
 	ms.Lock()
 	defer ms.Unlock()
 	offset := ms.ents[0].Index
+	// 如果压缩的索引还在第一条日志的前面，这种情况不需要压缩
 	if compactIndex <= offset {
 		return ErrCompacted
 	}
+	// 如果压缩的索引在最后一条日志的后面，这种情况应该不可能发生；
 	if compactIndex > ms.lastIndex() {
 		raftLogger.Panicf("compact %d is out of bound lastindex(%d)", compactIndex, ms.lastIndex())
 	}
 
 	i := compactIndex - offset
 	ents := make([]pb.Entry, 1, 1+uint64(len(ms.ents))-i)
+	// 第一个还是作为 dummy entry？
 	ents[0].Index = ms.ents[i].Index
 	ents[0].Term = ms.ents[i].Term
 	ents = append(ents, ms.ents[i+1:]...)
