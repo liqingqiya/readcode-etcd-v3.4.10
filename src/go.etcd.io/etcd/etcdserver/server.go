@@ -1002,6 +1002,7 @@ func (s *EtcdServer) run() {
 			}
 		},
 	}
+	// 重要：启动状态机
 	s.r.start(rh)
 
 	ep := etcdProgress{
@@ -1053,6 +1054,7 @@ func (s *EtcdServer) run() {
 		expiredLeaseC = s.lessor.ExpiredLeasesC()
 	}
 
+	// 处理后段部分
 	for {
 		select {
 		case ap := <-s.r.apply():
@@ -2229,6 +2231,7 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 	}
 
 	if ar.err != ErrNoSpace || len(s.alarmStore.Get(pb.AlarmType_NOSPACE)) > 0 {
+		// 回复，触发信号（因为用户的请求还在等着呢），并且把结果通过 applyResult 传递过去;
 		s.w.Trigger(id, ar)
 		return
 	}

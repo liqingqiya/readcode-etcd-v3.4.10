@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"strconv"
 	"time"
 
 	"go.etcd.io/etcd/auth"
@@ -646,6 +647,10 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 	if id == 0 {
 		id = r.Header.ID
 	}
+
+	s.lg.Info("process v3 request :", zap.String("id", strconv.Itoa(int(id))))
+
+	// 注册结果等待
 	ch := s.w.Register(id)
 
 	cctx, cancel := context.WithTimeout(ctx, s.Cfg.ReqTimeout())
@@ -664,7 +669,7 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 	defer proposalsPending.Dec()
 
 	select {
-	// 等待业务完成的结果
+	// 等待业务完成的结果，通过 channel 传递过来的就是 applyResult 的数据；
 	case x := <-ch:
 		return x.(*applyResult), nil
 	case <-cctx.Done():

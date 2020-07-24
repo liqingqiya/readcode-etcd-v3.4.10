@@ -38,11 +38,13 @@ type list struct {
 	m map[uint64]chan interface{}
 }
 
+// 创建要给同步对象
 // New creates a Wait.
 func New() Wait {
 	return &list{m: make(map[uint64]chan interface{})}
 }
 
+// 注册一个 key 进去，返回一个用于同步的 channel
 func (w *list) Register(id uint64) <-chan interface{} {
 	w.l.Lock()
 	defer w.l.Unlock()
@@ -56,6 +58,7 @@ func (w *list) Register(id uint64) <-chan interface{} {
 	return ch
 }
 
+// 触发信号
 func (w *list) Trigger(id uint64, x interface{}) {
 	w.l.Lock()
 	ch := w.m[id]
@@ -67,6 +70,7 @@ func (w *list) Trigger(id uint64, x interface{}) {
 	}
 }
 
+// 判断一个 key 是否注册
 func (w *list) IsRegistered(id uint64) bool {
 	w.l.RLock()
 	defer w.l.RUnlock()

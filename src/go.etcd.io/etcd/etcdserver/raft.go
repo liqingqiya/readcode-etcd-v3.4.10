@@ -151,6 +151,7 @@ func newRaftNode(cfg raftNodeConfig) *raftNode {
 	return r
 }
 
+// 状态机定时 tick
 // raft.Node does not have locks in Raft package
 func (r *raftNode) tick() {
 	r.tickMu.Lock()
@@ -158,6 +159,7 @@ func (r *raftNode) tick() {
 	r.tickMu.Unlock()
 }
 
+// etcd server 状态机启动
 // start prepares and starts raftNode in a new goroutine. It is no longer safe
 // to modify the fields after it has been started.
 func (r *raftNode) start(rh *raftReadyHandler) {
@@ -406,6 +408,7 @@ func (r *raftNode) processMessages(ms []raftpb.Message) []raftpb.Message {
 	return ms
 }
 
+// 获取 apply channel
 func (r *raftNode) apply() chan apply {
 	return r.applyc
 }
