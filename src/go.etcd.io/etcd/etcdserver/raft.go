@@ -160,6 +160,7 @@ func (r *raftNode) tick() {
 }
 
 // etcd server 状态机启动
+// 处理请求的前半部分（后半部分处理在 etcdServer.run ）
 // start prepares and starts raftNode in a new goroutine. It is no longer safe
 // to modify the fields after it has been started.
 func (r *raftNode) start(rh *raftReadyHandler) {
@@ -171,9 +172,12 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 
 		for {
 			select {
+			// 定时时间片
 			case <-r.ticker.C:
 				r.tick()
+			// 处理 Ready 的打包消息
 			case rd := <-r.Ready():
+				// SoftState 状态
 				if rd.SoftState != nil {
 					newLeader := rd.SoftState.Lead != raft.None && rh.getLead() != rd.SoftState.Lead
 					if newLeader {
@@ -196,7 +200,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 					rh.updateLeadership(newLeader)
 					r.td.Reset()
 				}
-
+				// ReadStates 状态；
 				if len(rd.ReadStates) != 0 {
 					select {
 					case r.readStateC <- rd.ReadStates[len(rd.ReadStates)-1]:
@@ -211,25 +215,29 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 					}
 				}
 
+				// 把可以 apply 的消息取出来
 				notifyc := make(chan struct{}, 1)
 				ap := apply{
 					entries:  rd.CommittedEntries,
 					snapshot: rd.Snapshot,
 					notifyc:  notifyc,
 				}
-
+				// 更新 commited Index
 				updateCommittedIndex(&ap, rh)
 
 				select {
+				// 切流水处理, 下半部分拎一个 goroutine 处理
 				case r.applyc <- ap:
 				case <-r.stopped:
 					return
 				}
 
+				// 复制日志和写磁盘并行执行？
 				// the leader can write to its disk in parallel with replicating to the followers and them
 				// writing to their disks.
 				// For more details, check raft thesis 10.2.1
 				if islead {
+					// 如果是 Leader ，那么可以准备发网络了；
 					// gofail: var raftBeforeLeaderSend struct{}
 					r.transport.Send(r.processMessages(rd.Messages))
 				}
@@ -364,7 +372,7 @@ func (r *raftNode) processMessages(ms []raftpb.Message) []raftpb.Message {
 		if r.isIDRemoved(ms[i].To) {
 			ms[i].To = 0
 		}
-
+		// 请求响应消息
 		if ms[i].Type == raftpb.MsgAppResp {
 			if sentAppResp {
 				ms[i].To = 0
@@ -372,7 +380,7 @@ func (r *raftNode) processMessages(ms []raftpb.Message) []raftpb.Message {
 				sentAppResp = true
 			}
 		}
-
+		// 快照消息
 		if ms[i].Type == raftpb.MsgSnap {
 			// There are two separate data store: the store for v2, and the KV for v3.
 			// The msgSnap only contains the most recent snapshot of store without KV.
@@ -385,6 +393,7 @@ func (r *raftNode) processMessages(ms []raftpb.Message) []raftpb.Message {
 			}
 			ms[i].To = 0
 		}
+		// 心跳消息
 		if ms[i].Type == raftpb.MsgHeartbeat {
 			ok, exceed := r.td.Observe(ms[i].To)
 			if !ok {

@@ -816,6 +816,7 @@ func (s *EtcdServer) start() {
 	go s.run()
 }
 
+// 过期日志清理
 func (s *EtcdServer) purgeFile() {
 	var dberrc, serrc, werrc <-chan error
 	var dbdonec, sdonec, wdonec <-chan struct{}
@@ -931,6 +932,7 @@ type raftReadyHandler struct {
 func (s *EtcdServer) run() {
 	lg := s.getLogger()
 
+	// 获取快照
 	sn, err := s.r.raftStorage.Snapshot()
 	if err != nil {
 		if lg != nil {
@@ -940,6 +942,7 @@ func (s *EtcdServer) run() {
 		}
 	}
 
+	// 异步处理 apply 包
 	// asynchronously accept apply packets, dispatch progress in-order
 	sched := schedule.NewFIFOScheduler()
 
@@ -1054,12 +1057,14 @@ func (s *EtcdServer) run() {
 		expiredLeaseC = s.lessor.ExpiredLeasesC()
 	}
 
-	// 处理后段部分
+	// 处理后段部分(请求已经被 commit 了，或者明确的结果已经出来了)
 	for {
 		select {
+		// apply 请求（这些请求都是被确认 commit ，可以 apply 的）
 		case ap := <-s.r.apply():
 			f := func(context.Context) { s.applyAll(&ep, &ap) }
 			sched.Schedule(f)
+		// lease 超时
 		case leases := <-expiredLeaseC:
 			s.goAttach(func() {
 				// Increases throughput of expired leases deletion process through parallelization
@@ -1092,6 +1097,7 @@ func (s *EtcdServer) run() {
 					})
 				}
 			})
+		// 结果报错
 		case err := <-s.errorc:
 			if lg != nil {
 				lg.Warn("server error", zap.Error(err))
