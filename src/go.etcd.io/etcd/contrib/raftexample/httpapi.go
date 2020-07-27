@@ -29,6 +29,7 @@ type httpKVAPI struct {
 	confChangeC chan<- raftpb.ConfChange
 }
 
+// 业务的处理 handler , 比如 12380，22380，32380 端口进来的请求都是到这里;
 func (h *httpKVAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	key := r.RequestURI
 	defer r.Body.Close()
@@ -40,6 +41,8 @@ func (h *httpKVAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed on PUT", http.StatusBadRequest)
 			return
 		}
+
+		log.Printf("key: %v, value:%v\n", key, string(v))
 
 		h.store.Propose(key, string(v))
 
@@ -103,6 +106,7 @@ func (h *httpKVAPI) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // serveHttpKVAPI starts a key-value server with a GET/PUT API and listens.
 func serveHttpKVAPI(kv *kvstore, port int, confChangeC chan<- raftpb.ConfChange, errorC <-chan error) {
+	// 业务入口，业务 http 请求入口
 	srv := http.Server{
 		Addr: ":" + strconv.Itoa(port),
 		Handler: &httpKVAPI{
