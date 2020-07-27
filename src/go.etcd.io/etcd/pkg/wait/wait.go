@@ -27,9 +27,12 @@ type Wait interface {
 	// Register waits returns a chan that waits on the given ID.
 	// The chan will be triggered when Trigger is called with
 	// the same ID.
+	// 注册请求等待的路径，一般在请求处理的开始的地方
 	Register(id uint64) <-chan interface{}
 	// Trigger triggers the waiting chans with the given ID.
+	// 触发唤醒，一般调用在请求结果确认的地方
 	Trigger(id uint64, x interface{})
+	// 判断是否注册了，如果注册了说明某个地方会等待这个 key 的结果返回
 	IsRegistered(id uint64) bool
 }
 

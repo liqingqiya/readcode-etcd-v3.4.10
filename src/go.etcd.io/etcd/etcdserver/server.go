@@ -1063,6 +1063,8 @@ func (s *EtcdServer) run() {
 		// apply 请求（这些请求都是被确认 commit ，可以 apply 的）
 		case ap := <-s.r.apply():
 			f := func(context.Context) { s.applyAll(&ep, &ap) }
+			// 任务请求入队，等待异步执行，这里也算一个性能优化，因为不需要在本 goroutine 里执行 apply 操作
+			// 完全可以放到另一个协程取异步执行；
 			sched.Schedule(f)
 		// lease 超时
 		case leases := <-expiredLeaseC:
@@ -1117,6 +1119,7 @@ func (s *EtcdServer) run() {
 	}
 }
 
+// 应用业务状态变更
 func (s *EtcdServer) applyAll(ep *etcdProgress, apply *apply) {
 	s.applySnapshot(ep, apply)
 	s.applyEntries(ep, apply)
@@ -2139,14 +2142,17 @@ func (s *EtcdServer) apply(
 	es []raftpb.Entry,
 	confState *raftpb.ConfState,
 ) (appliedt uint64, appliedi uint64, shouldStop bool) {
+	// 一个个遍历，应用变更
 	for i := range es {
 		e := es[i]
 		switch e.Type {
+		// 普通的消息
 		case raftpb.EntryNormal:
 			s.applyEntryNormal(&e)
 			s.setAppliedIndex(e.Index)
 			s.setTerm(e.Term)
 
+		// 配置变更
 		case raftpb.EntryConfChange:
 			// set the consistent index of current executing entry
 			if e.Index > s.consistIndex.ConsistentIndex() {
@@ -2175,6 +2181,7 @@ func (s *EtcdServer) apply(
 	return appliedt, appliedi, shouldStop
 }
 
+// 应用配置变更
 // applyEntryNormal apples an EntryNormal type raftpb request to the EtcdServer
 func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 	shouldApplyV3 := false
@@ -2224,6 +2231,7 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 	}
 
 	var ar *applyResult
+	// 判断是否有等待结果的人
 	needResult := s.w.IsRegistered(id)
 	if needResult || !noSideEffect(&raftReq) {
 		if !needResult && raftReq.Txn != nil {
@@ -2232,10 +2240,12 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 		ar = s.applyV3.Apply(&raftReq)
 	}
 
+	// 如果 ar（applyResult）== nil，那么说明没人关系的结果，直接从这里就退出了
 	if ar == nil {
 		return
 	}
 
+	// 触发响应
 	if ar.err != ErrNoSpace || len(s.alarmStore.Get(pb.AlarmType_NOSPACE)) > 0 {
 		// 回复，触发信号（因为用户的请求还在等着呢），并且把结果通过 applyResult 传递过去;
 		s.w.Trigger(id, ar)

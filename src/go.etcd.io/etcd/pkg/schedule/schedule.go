@@ -67,6 +67,8 @@ func NewFIFOScheduler() Scheduler {
 	}
 	f.finishCond = sync.NewCond(&f.mu)
 	f.ctx, f.cancel = context.WithCancel(context.Background())
+
+	// 后台协程任务调度
 	go f.run()
 	return f
 }
@@ -82,10 +84,12 @@ func (f *fifo) Schedule(j Job) {
 
 	if len(f.pendings) == 0 {
 		select {
+		// 如果之前没有在运行，那么唤醒；
 		case f.resume <- struct{}{}:
 		default:
 		}
 	}
+	// 添加到任务队列
 	f.pendings = append(f.pendings, j)
 }
 
@@ -107,9 +111,11 @@ func (f *fifo) Finished() int {
 	return f.finished
 }
 
+// 当前并没有人用到这个接口
 func (f *fifo) WaitFinish(n int) {
 	f.finishCond.L.Lock()
 	for f.finished < n || len(f.pendings) != 0 {
+		// 等待请求完成
 		f.finishCond.Wait()
 	}
 	f.finishCond.L.Unlock()
@@ -124,6 +130,10 @@ func (f *fifo) Stop() {
 	<-f.donec
 }
 
+/*
+从实现来看，这个仅仅是一个最简单的线性任务执行的 goroutine ，一个一个取，一个一个任务执行；
+纯串行执行
+*/
 func (f *fifo) run() {
 	// TODO: recover from job panic?
 	defer func() {
@@ -135,13 +145,17 @@ func (f *fifo) run() {
 		var todo Job
 		f.mu.Lock()
 		if len(f.pendings) != 0 {
+			// 调度次数加一
 			f.scheduled++
+			// 从任务队列中取一个任务出来
 			todo = f.pendings[0]
 		}
 		f.mu.Unlock()
 		if todo == nil {
 			select {
+			// 如果没有任务就等待
 			case <-f.resume:
+			// 任务结束
 			case <-f.ctx.Done():
 				f.mu.Lock()
 				pendings := f.pendings
@@ -154,10 +168,14 @@ func (f *fifo) run() {
 				return
 			}
 		} else {
+			// 执行任务
 			todo(f.ctx)
 			f.finishCond.L.Lock()
+			// 执行完了，加 finished 计数
 			f.finished++
+			// 删除执行过的任务
 			f.pendings = f.pendings[1:]
+			// 知会等待的节点唤醒
 			f.finishCond.Broadcast()
 			f.finishCond.L.Unlock()
 		}
