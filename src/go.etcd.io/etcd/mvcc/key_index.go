@@ -70,9 +70,10 @@ var (
 type keyIndex struct {
 	key         []byte       // 用户 key
 	modified    revision     // 最近一次修改；the main rev of the last modification
-	generations []generation // 多版本的历史修改保存在 generations 数组里
+	generations []generation // 一个key有可能是有多次创建，删除的，每一次的轮回都是一个 generation
 }
 
+// 生成一个 revision，并且投入 generation 数组;
 // put puts a revision to the keyIndex.
 func (ki *keyIndex) put(lg *zap.Logger, main int64, sub int64) {
 	rev := revision{main: main, sub: sub}
@@ -103,6 +104,7 @@ func (ki *keyIndex) put(lg *zap.Logger, main int64, sub int64) {
 	ki.modified = rev
 }
 
+// 生成一个 keyIndex？
 func (ki *keyIndex) restore(lg *zap.Logger, created, modified revision, ver int64) {
 	if len(ki.generations) != 0 {
 		if lg != nil {
@@ -121,6 +123,7 @@ func (ki *keyIndex) restore(lg *zap.Logger, created, modified revision, ver int6
 	keysGauge.Inc()
 }
 
+// 一个 generation 的终结
 // tombstone puts a revision, pointing to a tombstone, to the keyIndex.
 // It also creates a new empty generation in the keyIndex.
 // It returns ErrRevisionNotFound when tombstone on an empty generation.
@@ -139,6 +142,7 @@ func (ki *keyIndex) tombstone(lg *zap.Logger, main int64, sub int64) error {
 		return ErrRevisionNotFound
 	}
 	ki.put(lg, main, sub)
+	// 这个 append 的空 generation 才是终结的标志
 	ki.generations = append(ki.generations, generation{})
 	keysGauge.Dec()
 	return nil
@@ -157,6 +161,7 @@ func (ki *keyIndex) get(lg *zap.Logger, atRev int64) (modified, created revision
 			plog.Panicf("store.keyindex: unexpected get on empty keyIndex %s", string(ki.key))
 		}
 	}
+	// 找到对应的 generation
 	g := ki.findGeneration(atRev)
 	if g.isEmpty() {
 		return revision{}, revision{}, 0, ErrRevisionNotFound
@@ -217,6 +222,11 @@ func (ki *keyIndex) since(lg *zap.Logger, rev int64) []revision {
 	return revs
 }
 
+/*
+keyIndex 是可以清理的，
+1. 当一个已经被 tombstone 的 generation 是可以被删除的;
+2. 如果整个 generations 数组都已经被删除空了，那么整个 keyIndex 记录也可以被删除了;
+*/
 // compact compacts a keyIndex by removing the versions with smaller or equal
 // revision than the given atRev except the largest one (If the largest one is
 // a tombstone, it will not be kept).
@@ -324,6 +334,8 @@ func (ki *keyIndex) findGeneration(rev int64) *generation {
 	return nil
 }
 
+// 这个方法是对外提供的，btree 需要调用；
+// 比较的是 key，这个就是核心
 func (ki *keyIndex) Less(b btree.Item) bool {
 	return bytes.Compare(ki.key, b.(*keyIndex).key) == -1
 }
@@ -355,11 +367,12 @@ func (ki *keyIndex) String() string {
 	return s
 }
 
+// 代表了一个 key 的创建到消亡的一个周期
 // generation contains multiple revisions of a key.
 type generation struct {
-	ver     int64
-	created revision // when the generation is created (put in first revision).
-	revs    []revision
+	ver     int64      // revs 数组的个数 -1
+	created revision   // when the generation is created (put in first revision).
+	revs    []revision // 操作集合
 }
 
 func (g *generation) isEmpty() bool { return g == nil || len(g.revs) == 0 }

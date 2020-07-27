@@ -37,6 +37,7 @@ type index interface {
 	KeyIndex(ki *keyIndex) *keyIndex
 }
 
+// 用 google 开源的 btree 的实现
 // btree 的节点结构
 type treeIndex struct {
 	sync.RWMutex
@@ -52,13 +53,17 @@ func newTreeIndex(lg *zap.Logger) index {
 }
 
 func (ti *treeIndex) Put(key []byte, rev revision) {
+	// btree 的 key 是 keyIndex 结构的;
 	keyi := &keyIndex{key: key}
 
 	ti.Lock()
 	defer ti.Unlock()
 	item := ti.tree.Get(keyi)
 	if item == nil {
+		// 如果 btree 树上不存在，那么就 insert 上去
+		// 先添加一个 generation
 		keyi.put(ti.lg, rev.main, rev.sub)
+		// 添加 keyIndex 节点到 btree
 		ti.tree.ReplaceOrInsert(keyi)
 		return
 	}
@@ -66,10 +71,13 @@ func (ti *treeIndex) Put(key []byte, rev revision) {
 	okeyi.put(ti.lg, rev.main, rev.sub)
 }
 
+// key: 用户的 key
+// atRev : 本次获取的版本
 func (ti *treeIndex) Get(key []byte, atRev int64) (modified, created revision, ver int64, err error) {
 	keyi := &keyIndex{key: key}
 	ti.RLock()
 	defer ti.RUnlock()
+	// 根据 key 获取到 keyIndex 结构（也就找到了 revision）
 	if keyi = ti.keyIndex(keyi); keyi == nil {
 		return revision{}, revision{}, 0, ErrRevisionNotFound
 	}
@@ -184,6 +192,7 @@ func (ti *treeIndex) RangeSince(key, end []byte, rev int64) []revision {
 	return revs
 }
 
+// 压缩树占用空间，把一些无效的内容清理掉；
 func (ti *treeIndex) Compact(rev int64) map[revision]struct{} {
 	available := make(map[revision]struct{})
 	if ti.lg != nil {

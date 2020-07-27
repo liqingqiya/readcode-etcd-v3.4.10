@@ -48,6 +48,7 @@ var (
 	minSnapshotWarningTimeout = 30 * time.Second
 )
 
+// 对 bblot 的封装
 type Backend interface {
 	// ReadTx returns a read transaction. It is replaced by ConcurrentReadTx in the main data path, see #10523.
 	ReadTx() ReadTx
