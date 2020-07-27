@@ -73,7 +73,7 @@ type Ready struct {
 	// Entries specifies entries to be saved to stable storage BEFORE
 	// Messages are sent.
 	// 可以持久化，但是还没有发送到其他节点 commit 的消息
-	// 先持久化
+	// 先持久化，（一般，通过 appendEntry 函数添加进去）
 	Entries []pb.Entry
 
 	// Snapshot specifies the snapshot to be saved to stable storage.
@@ -91,7 +91,8 @@ type Ready struct {
 	// committed to stable storage.
 	// If it contains a MsgSnap message, the application MUST report back to raft
 	// when the snapshot has been received or has failed by calling ReportSnapshot.
-	// 需要广播给所有 peers 的消息
+	// 需要广播给所有 peers 的消息， 这个消息是走网络的。并且这个消息是没有 commit 过的，和 Entries 是同一批新鲜的消息；
+	// （一般通过 bcastAppend 函数添加进去）
 	Messages []pb.Message
 
 	// 是否要刷盘的标识，有啥脏数据就刷盘

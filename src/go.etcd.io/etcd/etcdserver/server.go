@@ -942,7 +942,7 @@ func (s *EtcdServer) run() {
 		}
 	}
 
-	// 异步处理 apply 包
+	// 另一个 goroutine 异步处理 apply 包
 	// asynchronously accept apply packets, dispatch progress in-order
 	sched := schedule.NewFIFOScheduler()
 

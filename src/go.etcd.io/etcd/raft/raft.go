@@ -1141,6 +1141,7 @@ func stepLeader(r *raft, m pb.Message) error {
 		if !r.appendEntry(m.Entries...) {
 			return ErrProposalDropped
 		}
+		// 把消息发送到 mailbox
 		r.bcastAppend()
 		return nil
 	case pb.MsgReadIndex:

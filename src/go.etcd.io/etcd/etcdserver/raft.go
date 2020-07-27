@@ -232,7 +232,10 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 					return
 				}
 
-				// 复制日志和写磁盘并行执行？
+				// 如果是 leader，这里网络和持久化并发？真的可以吗?
+				// 可以，因为如果这里并发，leader 持久化 log 失败了，那么没有关系，因为一定不会返回错误的结果给到客户，
+				// 而 follower 就不一样，必须要确保持久化完了之后，才回复 leader 才行；
+
 				// the leader can write to its disk in parallel with replicating to the followers and them
 				// writing to their disks.
 				// For more details, check raft thesis 10.2.1
@@ -256,6 +259,9 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 					// gofail: var raftAfterSaveSnap struct{}
 				}
 
+				// 对于，leader 先发送网络，后持久化到本地，所以持久化 log 对于 leader 和 follower 来说是并行的；
+				// 对于，follower 则是直接持久化未 Commit 的消息，然后才给 leader 返回结果。所以只要 follower 返回了 commit 了，
+				// 那么一定是持久化了的；
 				// gofail: var raftBeforeSave struct{}
 				if err := r.storage.Save(rd.HardState, rd.Entries); err != nil {
 					if r.lg != nil {
@@ -269,6 +275,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 				}
 				// gofail: var raftAfterSave struct{}
 
+				// 需要处理快照的场景
 				if !raft.IsEmptySnap(rd.Snapshot) {
 					// Force WAL to fsync its hard state before Release() releases
 					// old data from the WAL. Otherwise could get an error like:
@@ -304,8 +311,12 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 					// gofail: var raftAfterWALRelease struct{}
 				}
 
+				// 持久化完了之后，添加到内存
 				r.raftStorage.Append(rd.Entries)
 
+				// 如果是 follower 的角色，那么是在这里发送网络的。这个点是在 wal 持久化之后的，
+				// 也就是说，对于 follower 角色，是先持久化，后发送 MsgAppResp 消息给 leader；
+				// 而对于 leader 来说，是先发送 follower 日志网络消息，然后再持久化的；
 				if !islead {
 					// finish processing incoming messages before we signal raftdone chan
 					msgs := r.processMessages(rd.Messages)
@@ -338,6 +349,7 @@ func (r *raftNode) start(rh *raftReadyHandler) {
 						}
 					}
 
+					// 发送 MsgAppResp 等回复消息
 					// gofail: var raftBeforeFollowerSend struct{}
 					r.transport.Send(msgs)
 				} else {
