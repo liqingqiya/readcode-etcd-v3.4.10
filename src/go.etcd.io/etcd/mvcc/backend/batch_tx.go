@@ -68,6 +68,7 @@ func (t *batchTx) RUnlock() {
 	panic("unexpected RUnlock")
 }
 
+// 创建一个 bucket
 func (t *batchTx) UnsafeCreateBucket(name []byte) {
 	_, err := t.tx.CreateBucket(name)
 	if err != nil && err != bolt.ErrBucketExists {
@@ -84,6 +85,7 @@ func (t *batchTx) UnsafeCreateBucket(name []byte) {
 	t.pending++
 }
 
+// Put 一个 k/v 到 bolt db 里去；
 // UnsafePut must be called holding the lock on the tx.
 func (t *batchTx) UnsafePut(bucketName []byte, key []byte, value []byte) {
 	t.unsafePut(bucketName, key, value, false)
@@ -95,6 +97,7 @@ func (t *batchTx) UnsafeSeqPut(bucketName []byte, key []byte, value []byte) {
 }
 
 func (t *batchTx) unsafePut(bucketName []byte, key []byte, value []byte, seq bool) {
+	// 获取到 bucket
 	bucket := t.tx.Bucket(bucketName)
 	if bucket == nil {
 		if t.backend.lg != nil {
@@ -111,6 +114,7 @@ func (t *batchTx) unsafePut(bucketName []byte, key []byte, value []byte, seq boo
 		// this can delay the page split and reduce space usage.
 		bucket.FillPercent = 0.9
 	}
+	// k/v 数据保存到 bucket 里
 	if err := bucket.Put(key, value); err != nil {
 		if t.backend.lg != nil {
 			t.backend.lg.Fatal(
@@ -125,6 +129,7 @@ func (t *batchTx) unsafePut(bucketName []byte, key []byte, value []byte, seq boo
 	t.pending++
 }
 
+// 读数据，range 读
 // UnsafeRange must be called holding the lock on the tx.
 func (t *batchTx) UnsafeRange(bucketName, key, endKey []byte, limit int64) ([][]byte, [][]byte) {
 	bucket := t.tx.Bucket(bucketName)
@@ -163,6 +168,7 @@ func unsafeRange(c *bolt.Cursor, key, endKey []byte, limit int64) (keys [][]byte
 	return keys, vs
 }
 
+// 删除一个 k/v
 // UnsafeDelete must be called holding the lock on the tx.
 func (t *batchTx) UnsafeDelete(bucketName []byte, key []byte) {
 	bucket := t.tx.Bucket(bucketName)
@@ -191,6 +197,7 @@ func (t *batchTx) UnsafeDelete(bucketName []byte, key []byte) {
 	t.pending++
 }
 
+// 遍历一个 bucket ，bucket 里面存储数据是有序的；
 // UnsafeForEach must be called holding the lock on the tx.
 func (t *batchTx) UnsafeForEach(bucketName []byte, visitor func(k, v []byte) error) error {
 	return unsafeForEach(t.tx, bucketName, visitor)
@@ -223,6 +230,7 @@ func (t *batchTx) safePending() int {
 	return t.pending
 }
 
+// 递交一个事务
 func (t *batchTx) commit(stop bool) {
 	// commit the last tx
 	if t.tx != nil {
@@ -251,6 +259,7 @@ func (t *batchTx) commit(stop bool) {
 			}
 		}
 	}
+	// 如果 stop 为 true，那么说明不需要再开启一个新事务了；
 	if !stop {
 		t.tx = t.backend.begin(true)
 	}
@@ -261,6 +270,7 @@ type batchTxBuffered struct {
 	buf txWriteBuffer
 }
 
+// 创建一个读写事务
 func newBatchTxBuffered(backend *backend) *batchTxBuffered {
 	tx := &batchTxBuffered{
 		batchTx: batchTx{backend: backend},
@@ -328,8 +338,11 @@ func (t *batchTxBuffered) unsafeCommit(stop bool) {
 	}
 }
 
+// batchTxBuffered 本身就是对原始的 batchTx 的一层封装，保存一份数据到 buffer
 func (t *batchTxBuffered) UnsafePut(bucketName []byte, key []byte, value []byte) {
+	// 数据保存到 bolt db
 	t.batchTx.UnsafePut(bucketName, key, value)
+	// 数据保存到 buffer
 	t.buf.put(bucketName, key, value)
 }
 

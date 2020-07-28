@@ -50,6 +50,7 @@ var (
 
 // 对 bblot 的封装
 type Backend interface {
+	// 返回一个读事务
 	// ReadTx returns a read transaction. It is replaced by ConcurrentReadTx in the main data path, see #10523.
 	ReadTx() ReadTx
 	BatchTx() BatchTx
@@ -74,6 +75,7 @@ type Backend interface {
 	Close() error
 }
 
+// 快照接口
 type Snapshot interface {
 	// Size gets the size of the snapshot.
 	Size() int64
@@ -83,6 +85,7 @@ type Snapshot interface {
 	Close() error
 }
 
+// backend 具体实现
 type backend struct {
 	// size and commits are used with atomic operations so they must be
 	// 64-bit aligned, otherwise 32-bit tests will crash
@@ -158,6 +161,7 @@ func newBackend(bcfg BackendConfig) *backend {
 	bopts.NoSync = bcfg.UnsafeNoFsync
 	bopts.NoGrowSync = bcfg.UnsafeNoFsync
 
+	// 创建一个 bolt 操作具柄
 	db, err := bolt.Open(bcfg.Path, 0600, bopts)
 	if err != nil {
 		if bcfg.Logger != nil {
@@ -175,6 +179,7 @@ func newBackend(bcfg BackendConfig) *backend {
 		batchInterval: bcfg.BatchInterval,
 		batchLimit:    bcfg.BatchLimit,
 
+		// 读事务
 		readTx: &readTx{
 			buf: txReadBuffer{
 				txBuffer: txBuffer{make(map[string]*bucketBuffer)},
@@ -188,6 +193,7 @@ func newBackend(bcfg BackendConfig) *backend {
 
 		lg: bcfg.Logger,
 	}
+	// 读写事务
 	b.batchTx = newBatchTxBuffered(b)
 	go b.run()
 	return b
@@ -323,6 +329,7 @@ func (b *backend) SizeInUse() int64 {
 	return atomic.LoadInt64(&b.sizeInUse)
 }
 
+// 单独协程处理
 func (b *backend) run() {
 	defer close(b.donec)
 	t := time.NewTimer(b.batchInterval)
