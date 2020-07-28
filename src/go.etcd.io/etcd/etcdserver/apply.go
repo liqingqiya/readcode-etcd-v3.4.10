@@ -86,6 +86,10 @@ type applierV3 interface {
 
 type checkReqFunc func(mvcc.ReadView, *pb.RequestOp) error
 
+/*
+基础的 applierV3 接口实现，其他几个实现都在此实现上做功能扩展。
+内部调用 EtcdServer 中的 KV 接口进行持久化数据读写操作。
+*/
 type applierV3backend struct {
 	s *EtcdServer
 
@@ -125,6 +129,7 @@ func (a *applierV3backend) Apply(r *pb.InternalRaftRequest) *applyResult {
 	switch {
 	case r.Range != nil:
 		ar.resp, ar.err = a.s.applyV3.Range(context.TODO(), nil, r.Range)
+	// Put 请求
 	case r.Put != nil:
 		ar.resp, ar.trace, ar.err = a.s.applyV3.Put(nil, r.Put)
 	case r.DeleteRange != nil:
@@ -835,6 +840,10 @@ func (a *applierV3backend) RoleList(r *pb.AuthRoleListRequest) (*pb.AuthRoleList
 	}
 	return resp, err
 }
+
+/*
+在 applierV3backend 的基础上加上了限流功能;
+*/
 
 type quotaApplierV3 struct {
 	applierV3

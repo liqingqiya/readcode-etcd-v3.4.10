@@ -136,10 +136,12 @@ func DefaultBackendConfig() BackendConfig {
 	}
 }
 
+// 创建一个后端存储具柄
 func New(bcfg BackendConfig) Backend {
 	return newBackend(bcfg)
 }
 
+// 创建一个后端存储具柄
 func NewDefaultBackend(path string) Backend {
 	bcfg := DefaultBackendConfig()
 	bcfg.Path = path

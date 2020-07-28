@@ -377,6 +377,10 @@ func (s *EtcdServer) getPeerHashKVs(rev int64) []*peerHashKVResp {
 	return resps
 }
 
+/*
+磁盘空间不足的情况下，EtcdServer 中的 applierV3 切换到这个实现里面来，
+这个实现的任何写入操作都会失败，这样保证底层存储的数据量不再增加。
+*/
 type applierV3Corrupt struct {
 	applierV3
 }

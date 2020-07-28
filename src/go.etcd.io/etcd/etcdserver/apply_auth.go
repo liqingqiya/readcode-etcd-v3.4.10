@@ -25,6 +25,9 @@ import (
 	"go.etcd.io/etcd/pkg/traceutil"
 )
 
+/*
+在 applierV3backend 的基础上扩展出权限控制的功能。
+*/
 type authApplierV3 struct {
 	applierV3
 	as     auth.AuthStore

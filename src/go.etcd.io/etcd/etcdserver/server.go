@@ -2237,6 +2237,7 @@ func (s *EtcdServer) applyEntryNormal(e *raftpb.Entry) {
 		if !needResult && raftReq.Txn != nil {
 			removeNeedlessRangeReqs(raftReq.Txn)
 		}
+		// 业务应用状态
 		ar = s.applyV3.Apply(&raftReq)
 	}
 
