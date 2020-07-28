@@ -68,6 +68,7 @@ func (s *store) Write(trace *traceutil.Trace) TxnWrite {
 	s.mu.RLock()
 	tx := s.b.BatchTx()
 	tx.Lock()
+	// 创建一个 txn write 对象, beginRev 设置成 s.currentRev
 	tw := &storeTxnWrite{
 		storeTxnRead: storeTxnRead{s, tx, 0, 0, trace},
 		tx:           tx,
@@ -94,11 +95,13 @@ func (tw *storeTxnWrite) DeleteRange(key, end []byte) (int64, int64) {
 	return 0, tw.beginRev
 }
 
+// txn 真正的实现位置
 func (tw *storeTxnWrite) Put(key, value []byte, lease lease.LeaseID) int64 {
 	tw.put(key, value, lease)
 	return tw.beginRev + 1
 }
 
+// txn 结束
 func (tw *storeTxnWrite) End() {
 	// only update index if the txn modifies the mvcc state.
 	if len(tw.changes) != 0 {
@@ -211,8 +214,11 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 	}
 
 	tw.trace.Step("marshal mvccpb.KeyValue")
+	//
 	tw.tx.UnsafeSeqPut(keyBucketName, ibytes, d)
+	// keyIndex 里添加一个 revision
 	tw.s.kvindex.Put(key, idxRev)
+
 	tw.changes = append(tw.changes, kv)
 	tw.trace.Step("store kv pair into bolt db")
 

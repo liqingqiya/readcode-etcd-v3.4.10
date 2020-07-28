@@ -33,6 +33,7 @@ type RangeResult struct {
 	Count int
 }
 
+// 读操作界面
 type ReadView interface {
 	// FirstRev returns the first KV revision at the time of opening the txn.
 	// After a compaction, the first revision increases to the compaction
@@ -61,6 +62,7 @@ type TxnRead interface {
 	End()
 }
 
+// 写操作界面
 type WriteView interface {
 	// DeleteRange deletes the given range from the store.
 	// A deleteRange increases the rev of the store if any key in the range exists.
@@ -79,6 +81,7 @@ type WriteView interface {
 	Put(key, value []byte, lease lease.LeaseID) (rev int64)
 }
 
+// 事务写
 // TxnWrite represents a transaction that can modify the store.
 type TxnWrite interface {
 	TxnRead
@@ -90,6 +93,7 @@ type TxnWrite interface {
 // txnReadWrite coerces a read txn to a write, panicking on any write operation.
 type txnReadWrite struct{ TxnRead }
 
+// mock 的实现；真正的实现在其他地方封装；
 func (trw *txnReadWrite) DeleteRange(key, end []byte) (n, rev int64) { panic("unexpected DeleteRange") }
 func (trw *txnReadWrite) Put(key, value []byte, lease lease.LeaseID) (rev int64) {
 	panic("unexpected Put")
@@ -98,13 +102,16 @@ func (trw *txnReadWrite) Changes() []mvccpb.KeyValue { return nil }
 
 func NewReadOnlyTxnWrite(txn TxnRead) TxnWrite { return &txnReadWrite{txn} }
 
+// kv 存储接口的封装
 type KV interface {
 	ReadView
 	WriteView
 
+	// 创建一个读事务
 	// Read creates a read transaction.
 	Read(trace *traceutil.Trace) TxnRead
 
+	// 创建一个写事务
 	// Write creates a write transaction.
 	Write(trace *traceutil.Trace) TxnWrite
 

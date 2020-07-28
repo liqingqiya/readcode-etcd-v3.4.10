@@ -448,6 +448,7 @@ func (m *RangeResponse) GetCount() int64 {
 	return 0
 }
 
+// 用户 Put 请求字段
 type PutRequest struct {
 	// key is the key, in bytes, to put into the key-value store.
 	Key []byte `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`

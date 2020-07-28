@@ -69,6 +69,7 @@ type watchableStore struct {
 // cancel operations.
 type cancelFunc func()
 
+// 创建一个 kv 后端对象
 func New(lg *zap.Logger, b backend.Backend, le lease.Lessor, as auth.AuthStore, ig ConsistentIndexGetter, cfg StoreConfig) ConsistentWatchableKV {
 	return newWatchableStore(lg, b, le, as, ig, cfg)
 }

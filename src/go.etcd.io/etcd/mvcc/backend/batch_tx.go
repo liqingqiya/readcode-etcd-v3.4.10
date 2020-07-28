@@ -38,9 +38,9 @@ type BatchTx interface {
 }
 
 type batchTx struct {
-	sync.Mutex
-	tx      *bolt.Tx
-	backend *backend
+	sync.Mutex          //
+	tx         *bolt.Tx // 事务
+	backend    *backend //
 
 	pending int
 }

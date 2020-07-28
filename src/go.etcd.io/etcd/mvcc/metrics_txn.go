@@ -16,6 +16,7 @@ package mvcc
 
 import "go.etcd.io/etcd/lease"
 
+// 对 TxnWrite 做的一层简单的封装，封装了 metric 的计量
 type metricsTxnWrite struct {
 	TxnWrite
 	ranges  uint

@@ -225,6 +225,7 @@ func (b *backend) ForceCommit() {
 	b.batchTx.Commit()
 }
 
+// 生成一个快照
 func (b *backend) Snapshot() Snapshot {
 	b.batchTx.Commit()
 

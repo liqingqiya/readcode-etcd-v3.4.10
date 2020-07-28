@@ -98,6 +98,7 @@ type store struct {
 	// Locked at end of write txn and released after write txn unlock lock.
 	// Locked before locking read txn and released after locking.
 	revMu sync.RWMutex
+	// 最新完成的 revision
 	// currentRev is the revision of the last completed transaction.
 	currentRev int64
 	// compactMainRev is the main revision of the last compaction.
@@ -114,6 +115,7 @@ type store struct {
 	lg *zap.Logger
 }
 
+// 后端存储控制器
 // NewStore returns a new store. It is useful to create a store inside
 // mvcc pkg. It should only be used for testing externally.
 func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ig ConsistentIndexGetter, cfg StoreConfig) *store {

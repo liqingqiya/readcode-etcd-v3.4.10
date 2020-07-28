@@ -129,7 +129,7 @@ func (a *applierV3backend) Apply(r *pb.InternalRaftRequest) *applyResult {
 	switch {
 	case r.Range != nil:
 		ar.resp, ar.err = a.s.applyV3.Range(context.TODO(), nil, r.Range)
-	// Put 请求
+	// 用户 Put 请求
 	case r.Put != nil:
 		ar.resp, ar.trace, ar.err = a.s.applyV3.Put(nil, r.Put)
 	case r.DeleteRange != nil:
@@ -199,6 +199,7 @@ func (a *applierV3backend) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (resp *pb.Pu
 				return nil, nil, lease.ErrLeaseNotFound
 			}
 		}
+		// watchableStore.Write
 		txn = a.s.KV().Write(trace)
 		defer txn.End()
 	}
