@@ -27,6 +27,7 @@ import (
 // is known to never overwrite any key so range is safe.
 var safeRangeBucket = []byte("key")
 
+// 只读事务封装
 type ReadTx interface {
 	Lock()
 	Unlock()
@@ -45,6 +46,7 @@ type readTx struct {
 	// TODO: group and encapsulate {txMu, tx, buckets, txWg}, as they share the same lifecycle.
 	// txMu protects accesses to buckets and tx on Range requests.
 	txMu    sync.RWMutex
+	// bolt 事务封装
 	tx      *bolt.Tx
 	buckets map[string]*bolt.Bucket
 	// txWg protects tx from being rolled back at the end of a batch interval until all reads using this tx are done.
@@ -67,6 +69,7 @@ func (rt *readTx) UnsafeRange(bucketName, key, endKey []byte, limit int64) ([][]
 	if limit > 1 && !bytes.Equal(bucketName, safeRangeBucket) {
 		panic("do not use unsafeRange on non-keys bucket")
 	}
+	// 从 bucketBuffer 里查找；
 	keys, vals := rt.buf.Range(bucketName, key, endKey, limit)
 	if int64(len(keys)) == limit {
 		return keys, vals
@@ -92,6 +95,7 @@ func (rt *readTx) UnsafeRange(bucketName, key, endKey []byte, limit int64) ([][]
 	c := bucket.Cursor()
 	rt.txMu.Unlock()
 
+	// 从 bolt 里获取
 	k2, v2 := unsafeRange(c, key, endKey, limit-int64(len(keys)))
 	return append(k2, keys...), append(v2, vals...)
 }
@@ -102,6 +106,7 @@ func (rt *readTx) UnsafeForEach(bucketName []byte, visitor func(k, v []byte) err
 		dups[string(k)] = struct{}{}
 		return nil
 	}
+	// 构造闭包遍历函数
 	visitNoDup := func(k, v []byte) error {
 		if _, ok := dups[string(k)]; ok {
 			return nil

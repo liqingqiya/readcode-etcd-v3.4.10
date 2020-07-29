@@ -26,7 +26,9 @@ import (
 )
 
 type BatchTx interface {
+	// BatchTx 为读写事务，所以肯定包含了 ReadTx，直接复用代码即可 ;
 	ReadTx
+	// Unsafe 的意思是必须串行执行，在锁内互斥执行；
 	UnsafeCreateBucket(name []byte)
 	UnsafePut(bucketName []byte, key []byte, value []byte)
 	UnsafeSeqPut(bucketName []byte, key []byte, value []byte)
@@ -39,8 +41,8 @@ type BatchTx interface {
 
 type batchTx struct {
 	sync.Mutex          //
-	tx         *bolt.Tx // 事务
-	backend    *backend //
+	tx         *bolt.Tx // blot 的事务对象
+	backend    *backend // 底层封装( 数据真正所在位置 )
 
 	pending int
 }
@@ -60,6 +62,7 @@ func (t *batchTx) Unlock() {
 // have appropriate semantics in BatchTx interface. Therefore should not be called.
 // TODO: might want to decouple ReadTx and BatchTx
 
+// 内嵌了 ReadTx ，但是又不想被使用到 RLock, RUnlock 的方法；
 func (t *batchTx) RLock() {
 	panic("unexpected RLock")
 }
@@ -68,8 +71,9 @@ func (t *batchTx) RUnlock() {
 	panic("unexpected RUnlock")
 }
 
-// 创建一个 bucket
+// 创建一个 bucket （必须在锁内，非并发安全）
 func (t *batchTx) UnsafeCreateBucket(name []byte) {
+	// 调用 bolt 的 CreateBucket
 	_, err := t.tx.CreateBucket(name)
 	if err != nil && err != bolt.ErrBucketExists {
 		if t.backend.lg != nil {
@@ -146,6 +150,7 @@ func (t *batchTx) UnsafeRange(bucketName, key, endKey []byte, limit int64) ([][]
 	return unsafeRange(bucket.Cursor(), key, endKey, limit)
 }
 
+// 调用 bolt range 一个 bucket 里面的 kv
 func unsafeRange(c *bolt.Cursor, key, endKey []byte, limit int64) (keys [][]byte, vs [][]byte) {
 	if limit <= 0 {
 		limit = math.MaxInt64
@@ -261,11 +266,21 @@ func (t *batchTx) commit(stop bool) {
 	}
 	// 如果 stop 为 true，那么说明不需要再开启一个新事务了；
 	if !stop {
+		// 获取一个新的事务对象； 开始的时候就会调用到这里来；
+		// 调用栈：
+		// New -> newBackend
+		// -> newBatchTxBuffered
+		// -> tx.Commit
+		// -> t.commit(false)
+		// -> t.unsafeCommit(false)
+		// -> t.batchTx.commit(false)
+		// -> t.tx 赋值
 		t.tx = t.backend.begin(true)
 	}
 }
 
 type batchTxBuffered struct {
+	// 底层的封装
 	batchTx
 	buf txWriteBuffer
 }
@@ -331,9 +346,11 @@ func (t *batchTxBuffered) unsafeCommit(stop bool) {
 		t.backend.readTx.reset()
 	}
 
+	// 赋值 batchTx.tx
 	t.batchTx.commit(stop)
 
 	if !stop {
+		// 赋值 ReadTx.tx
 		t.backend.readTx.tx = t.backend.begin(false)
 	}
 }

@@ -146,8 +146,10 @@ func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ig ConsistentI
 		s.le.SetRangeDeleter(func() lease.TxnDelete { return s.Write(traceutil.TODO()) })
 	}
 
+	// 获取一个 Batch 事务对象
 	tx := s.b.BatchTx()
 	tx.Lock()
+	// 只创建两个 Bucket：key，meta
 	tx.UnsafeCreateBucket(keyBucketName)
 	tx.UnsafeCreateBucket(metaBucketName)
 	tx.Unlock()

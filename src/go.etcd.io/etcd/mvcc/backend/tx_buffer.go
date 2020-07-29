@@ -48,9 +48,11 @@ func (txw *txWriteBuffer) put(bucket, k, v []byte) {
 func (txw *txWriteBuffer) putSeq(bucket, k, v []byte) {
 	b, ok := txw.buckets[string(bucket)]
 	if !ok {
+		// 没有找到这个 bucket 对应的 buffer 结构，那么就 new 一个；
 		b = newBucketBuffer()
 		txw.buckets[string(bucket)] = b
 	}
+	// 把 kv 添加进 buffer
 	b.add(k, v)
 }
 
@@ -110,13 +112,17 @@ type kv struct {
 type bucketBuffer struct {
 	buf []kv
 	// used tracks number of elements in use so buf can be reused without reallocation.
+	// 使用的位置游标
 	used int
 }
 
+// 新建一个 bucketBuffer 结构，默认数组大小 512 长度
 func newBucketBuffer() *bucketBuffer {
 	return &bucketBuffer{buf: make([]kv, 512), used: 0}
 }
 
+// 获取一段有序范围内的 kv
+// key 指明开始的位置，endKey 指明结束的位置，limit 指明总个数
 func (bb *bucketBuffer) Range(key, endKey []byte, limit int64) (keys [][]byte, vals [][]byte) {
 	f := func(i int) bool { return bytes.Compare(bb.buf[i].key, key) >= 0 }
 	idx := sort.Search(bb.used, f)
@@ -143,6 +149,7 @@ func (bb *bucketBuffer) Range(key, endKey []byte, limit int64) (keys [][]byte, v
 	return keys, vals
 }
 
+// 遍历 bucketBuffer 里面存储的 kv
 func (bb *bucketBuffer) ForEach(visitor func(k, v []byte) error) error {
 	for i := 0; i < bb.used; i++ {
 		if err := visitor(bb.buf[i].key, bb.buf[i].val); err != nil {
@@ -156,12 +163,14 @@ func (bb *bucketBuffer) add(k, v []byte) {
 	bb.buf[bb.used].key, bb.buf[bb.used].val = k, v
 	bb.used++
 	if bb.used == len(bb.buf) {
+		// 如果满了，那就扩容
 		buf := make([]kv, (3*len(bb.buf))/2)
 		copy(buf, bb.buf)
 		bb.buf = buf
 	}
 }
 
+// 合并两个 bucketBuffer
 // merge merges data from bb into bbsrc.
 func (bb *bucketBuffer) merge(bbsrc *bucketBuffer) {
 	for i := 0; i < bbsrc.used; i++ {
@@ -187,7 +196,9 @@ func (bb *bucketBuffer) merge(bbsrc *bucketBuffer) {
 	bb.used = widx + 1
 }
 
+// 长度以 used 为准
 func (bb *bucketBuffer) Len() int { return bb.used }
+// 比较以 key 为准
 func (bb *bucketBuffer) Less(i, j int) bool {
 	return bytes.Compare(bb.buf[i].key, bb.buf[j].key) < 0
 }

@@ -152,6 +152,7 @@ func NewDefaultBackend(path string) Backend {
 }
 
 func newBackend(bcfg BackendConfig) *backend {
+	// bolt 的 Options 配置
 	bopts := &bolt.Options{}
 	if boltOpenOptions != nil {
 		*bopts = *boltOpenOptions
@@ -179,7 +180,7 @@ func newBackend(bcfg BackendConfig) *backend {
 		batchInterval: bcfg.BatchInterval,
 		batchLimit:    bcfg.BatchLimit,
 
-		// 读事务
+		// New 一个读事务
 		readTx: &readTx{
 			buf: txReadBuffer{
 				txBuffer: txBuffer{make(map[string]*bucketBuffer)},
@@ -193,7 +194,7 @@ func newBackend(bcfg BackendConfig) *backend {
 
 		lg: bcfg.Logger,
 	}
-	// 读写事务
+	// New 一个读写事务
 	b.batchTx = newBatchTxBuffered(b)
 	go b.run()
 	return b
@@ -281,6 +282,7 @@ func (b *backend) Snapshot() Snapshot {
 		}
 	}()
 
+	// 这个快照就是把整个 bolt db 发送过去，使用的是最原生的 bolt.Tx 的 WriteTo 方法；
 	return &snapshot{tx, stopc, donec}
 }
 
@@ -546,6 +548,7 @@ func defragdb(odb, tmpdb *bolt.DB, limit int) error {
 	return tmptx.Commit()
 }
 
+// backend 开启一个事务
 func (b *backend) begin(write bool) *bolt.Tx {
 	b.mu.RLock()
 	tx := b.unsafeBegin(write)
