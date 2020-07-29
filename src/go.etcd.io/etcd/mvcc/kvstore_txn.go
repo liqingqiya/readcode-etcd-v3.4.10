@@ -64,8 +64,13 @@ type storeTxnWrite struct {
 	changes  []mvccpb.KeyValue
 }
 
+// 返回一个写事务对象；
+/*
+KV.Put -> WriteView.Put
+*/
 func (s *store) Write(trace *traceutil.Trace) TxnWrite {
 	s.mu.RLock()
+	// 获取到事务的操作对象
 	tx := s.b.BatchTx()
 	tx.Lock()
 	// 创建一个 txn write 对象, beginRev 设置成 s.currentRev
@@ -96,8 +101,16 @@ func (tw *storeTxnWrite) DeleteRange(key, end []byte) (int64, int64) {
 }
 
 // txn 真正的实现位置
+/*
+KV 	-> Put
+	-> writeView.Put
+	-> metricsTxnWrite.Put
+	-> storeTxnWrite.Put
+*/
 func (tw *storeTxnWrite) Put(key, value []byte, lease lease.LeaseID) int64 {
+	// 数据写入存储
 	tw.put(key, value, lease)
+	// 分配的 rev 递增
 	return tw.beginRev + 1
 }
 
@@ -181,6 +194,8 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 
 	// if the key exists before, use its previous created and
 	// get its previous leaseID
+
+	// rev 是能够标识唯一的事务的，但是不能标识事务里的子操作
 	_, created, ver, err := tw.s.kvindex.Get(key, rev)
 	if err == nil {
 		c = created.main
@@ -214,9 +229,9 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 	}
 
 	tw.trace.Step("marshal mvccpb.KeyValue")
-	//
+	// 存储到 bolt db 文件
 	tw.tx.UnsafeSeqPut(keyBucketName, ibytes, d)
-	// keyIndex 里添加一个 revision
+	// btree 树上添加一个节点, keyIndex 里添加一个 revision
 	tw.s.kvindex.Put(key, idxRev)
 
 	tw.changes = append(tw.changes, kv)

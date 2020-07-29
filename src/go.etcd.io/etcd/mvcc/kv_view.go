@@ -19,6 +19,7 @@ import (
 	"go.etcd.io/etcd/pkg/traceutil"
 )
 
+// store 读的界面实现
 type readView struct{ kv KV }
 
 func (rv *readView) FirstRev() int64 {
@@ -39,6 +40,7 @@ func (rv *readView) Range(key, end []byte, ro RangeOptions) (r *RangeResult, err
 	return tr.Range(key, end, ro)
 }
 
+// store 写的界面实现
 type writeView struct{ kv KV }
 
 func (wv *writeView) DeleteRange(key, end []byte) (n, rev int64) {
@@ -48,7 +50,10 @@ func (wv *writeView) DeleteRange(key, end []byte) (n, rev int64) {
 }
 
 func (wv *writeView) Put(key, value []byte, lease lease.LeaseID) (rev int64) {
+	// 创建一个写事务对象
 	tw := wv.kv.Write(traceutil.TODO())
+	// 事务执行了之后，调用 End 操作，End 操作里面就有一个递增 currentRev 的操作，这个操作也就是事务的唯一 id 来源;
 	defer tw.End()
+	// 写入数据
 	return tw.Put(key, value, lease)
 }

@@ -291,6 +291,7 @@ type IgnoreKey struct {
 	Key    string
 }
 
+// 计算 backend 的 hash 校验值
 func (b *backend) Hash(ignores map[IgnoreKey]struct{}) (uint32, error) {
 	h := crc32.New(crc32.MakeTable(crc32.Castagnoli))
 
@@ -365,6 +366,7 @@ func (b *backend) Defrag() error {
 	return b.defrag()
 }
 
+// 压缩空间
 func (b *backend) defrag() error {
 	now := time.Now()
 

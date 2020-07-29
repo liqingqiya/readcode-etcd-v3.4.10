@@ -322,6 +322,7 @@ func (t *batchTxBuffered) CommitAndStop() {
 	t.Unlock()
 }
 
+//
 func (t *batchTxBuffered) commit(stop bool) {
 	// all read txs must be closed to acquire boltdb commit rwlock
 	t.backend.readTx.Lock()
