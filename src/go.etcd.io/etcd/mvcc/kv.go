@@ -121,6 +121,7 @@ type KV interface {
 	// HashByRev computes the hash of all MVCC revisions up to a given revision.
 	HashByRev(rev int64) (hash uint32, revision int64, compactRev int64, err error)
 
+	// 压缩调用
 	// Compact frees all superseded keys with revisions less than rev.
 	Compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, error)
 
@@ -138,6 +139,7 @@ type WatchableKV interface {
 	Watchable
 }
 
+// 回调的实现（观测者）
 // Watchable is the interface that wraps the NewWatchStream function.
 type Watchable interface {
 	// NewWatchStream returns a WatchStream that can be used to
