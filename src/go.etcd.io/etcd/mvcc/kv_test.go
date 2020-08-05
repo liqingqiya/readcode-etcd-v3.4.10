@@ -103,6 +103,7 @@ func testKVRange(t *testing.T, f rangeFunc) {
 			nil,
 		},
 		// get all keys
+		// ["foo" , "foo3") 之间的 key
 		{
 			[]byte("foo"), []byte("foo3"),
 			kvs,
@@ -155,6 +156,7 @@ func testKVRangeRev(t *testing.T, f rangeFunc) {
 	}{
 		{-1, 4, kvs},
 		{0, 4, kvs},
+		// 查询会返回 <= rev 的值
 		{2, 4, kvs[:1]},
 		{3, 4, kvs[:2]},
 		{4, 4, kvs},
@@ -825,6 +827,7 @@ func put3TestKVs(s KV) []mvccpb.KeyValue {
 	s.Put([]byte("foo"), []byte("bar"), 1)
 	s.Put([]byte("foo1"), []byte("bar1"), 2)
 	s.Put([]byte("foo2"), []byte("bar2"), 3)
+	// 返回构造的 mock 数据
 	return []mvccpb.KeyValue{
 		{Key: []byte("foo"), Value: []byte("bar"), CreateRevision: 2, ModRevision: 2, Version: 1, Lease: 1},
 		{Key: []byte("foo1"), Value: []byte("bar1"), CreateRevision: 3, ModRevision: 3, Version: 1, Lease: 2},

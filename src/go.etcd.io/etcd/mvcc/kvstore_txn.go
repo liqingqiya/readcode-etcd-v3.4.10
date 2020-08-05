@@ -200,6 +200,7 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 	// btree 通过 key 查询获取到 keyIndex (btree 的节点结构), 然后再通过 rev 定位到具体的版本;
 	_, created, ver, err := tw.s.kvindex.Get(key, rev)
 	if err == nil {
+		// 如果没有错误，说明找到了 key，有历史版本, 把创建 key 时候的版本返回
 		c = created.main
 		oldLease = tw.s.le.GetLease(lease.LeaseItem{Key: string(key)})
 	}

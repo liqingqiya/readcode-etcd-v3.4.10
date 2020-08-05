@@ -53,6 +53,7 @@ type Backend interface {
 	// 返回一个读事务
 	// ReadTx returns a read transaction. It is replaced by ConcurrentReadTx in the main data path, see #10523.
 	ReadTx() ReadTx
+	// 返回一个写事务
 	BatchTx() BatchTx
 	// ConcurrentReadTx returns a non-blocking read transaction.
 	ConcurrentReadTx() ReadTx
@@ -341,10 +342,12 @@ func (b *backend) run() {
 		select {
 		case <-t.C:
 		case <-b.stopc:
+			// 如果收到停止信号
 			b.batchTx.CommitAndStop()
 			return
 		}
 		if b.batchTx.safePending() != 0 {
+			// 如果有 pending 操作，那么 commit
 			b.batchTx.Commit()
 		}
 		t.Reset(b.batchInterval)

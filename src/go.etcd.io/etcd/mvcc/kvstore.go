@@ -153,6 +153,7 @@ func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ig ConsistentI
 	tx.UnsafeCreateBucket(keyBucketName)
 	tx.UnsafeCreateBucket(metaBucketName)
 	tx.Unlock()
+	// 强制刷盘
 	s.b.ForceCommit()
 
 	s.mu.Lock()

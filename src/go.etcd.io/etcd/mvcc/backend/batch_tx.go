@@ -40,11 +40,10 @@ type BatchTx interface {
 }
 
 type batchTx struct {
-	sync.Mutex          //
+	sync.Mutex          // 互斥保护
 	tx         *bolt.Tx // blot 的事务对象
 	backend    *backend // 底层封装( 数据真正所在位置 )
-
-	pending int
+	pending    int      // 标识 batchTx 里的 pending 操作
 }
 
 func (t *batchTx) Lock() {
@@ -244,7 +243,7 @@ func (t *batchTx) commit(stop bool) {
 		}
 
 		start := time.Now()
-
+		// 递交刷盘
 		// gofail: var beforeCommit struct{}
 		err := t.tx.Commit()
 		// gofail: var afterCommit struct{}
