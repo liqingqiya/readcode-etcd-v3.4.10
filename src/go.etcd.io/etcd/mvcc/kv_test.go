@@ -154,9 +154,10 @@ func testKVRangeRev(t *testing.T, f rangeFunc) {
 		wrev int64
 		wkvs []mvccpb.KeyValue
 	}{
+		// 这两种情况是特殊情况，会返回所有的版本
 		{-1, 4, kvs},
 		{0, 4, kvs},
-		// 查询会返回 <= rev 的值
+		// 查询会返回 <= rev 的版本
 		{2, 4, kvs[:1]},
 		{3, 4, kvs[:2]},
 		{4, 4, kvs},
@@ -185,6 +186,7 @@ func testKVRangeBadRev(t *testing.T, f rangeFunc) {
 	defer cleanup(s, b, tmpPath)
 
 	put3TestKVs(s)
+	// 回收 rev <= 4 的版本
 	if _, err := s.Compact(traceutil.TODO(), 4); err != nil {
 		t.Fatalf("compact error (%v)", err)
 	}
