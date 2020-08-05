@@ -188,6 +188,7 @@ func (tr *storeTxnRead) rangeKeys(key, end []byte, curRev int64, ro RangeOptions
 }
 
 func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
+	// 获取到本次版本号
 	rev := tw.beginRev + 1
 	c := rev
 	oldLease := lease.NoLease
@@ -195,7 +196,8 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 	// if the key exists before, use its previous created and
 	// get its previous leaseID
 
-	// rev 是能够标识唯一的事务的，但是不能标识事务里的子操作
+	// rev 是能够标识唯一的事务的，但是不能标识事务里的子操作;
+	// btree 通过 key 查询获取到 keyIndex (btree 的节点结构), 然后再通过 rev 定位到具体的版本;
 	_, created, ver, err := tw.s.kvindex.Get(key, rev)
 	if err == nil {
 		c = created.main

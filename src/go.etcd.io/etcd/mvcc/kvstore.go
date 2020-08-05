@@ -126,7 +126,7 @@ func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ig ConsistentI
 		cfg:     cfg,
 		b:       b,
 		ig:      ig,
-		kvindex: newTreeIndex(lg),
+		kvindex: newTreeIndex(lg),	// B 树
 
 		le: le,
 

@@ -61,8 +61,10 @@ type KeyValue struct {
 	// key is the key in bytes. An empty key is not allowed.
 	Key []byte `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	// create_revision is the revision of last creation on this key.
+	// 当前最新的版本
 	CreateRevision int64 `protobuf:"varint,2,opt,name=create_revision,json=createRevision,proto3" json:"create_revision,omitempty"`
 	// mod_revision is the revision of last modification on this key.
+	// 上一次版本
 	ModRevision int64 `protobuf:"varint,3,opt,name=mod_revision,json=modRevision,proto3" json:"mod_revision,omitempty"`
 	// version is the version of the key. A deletion resets
 	// the version to zero and any modification of the key
