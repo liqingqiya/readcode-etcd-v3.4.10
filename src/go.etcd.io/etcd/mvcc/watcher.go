@@ -104,6 +104,7 @@ type watchStream struct {
 	watchers map[WatchID]*watcher
 }
 
+// 创建一个 watcher 在这个 watchStream 上，返回 watchid
 // Watch creates a new watcher in the stream and returns its WatchID.
 func (ws *watchStream) Watch(id WatchID, key, end []byte, startRev int64, fcs ...FilterFunc) (WatchID, error) {
 	// prevent wrong range where key >= end lexicographically

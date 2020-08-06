@@ -41,6 +41,7 @@ func (tw *watchableStoreTxnWrite) End() {
 	// end write txn under watchable store lock so the updates are visible
 	// when asynchronous event posting checks the current store revision
 	tw.s.mu.Lock()
+	// watch 写事务完了之后，通知 watcher
 	tw.s.notify(rev, evs)
 	tw.TxnWrite.End()
 	tw.s.mu.Unlock()
