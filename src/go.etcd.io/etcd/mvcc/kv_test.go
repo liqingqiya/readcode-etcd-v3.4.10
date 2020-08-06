@@ -52,10 +52,11 @@ var (
 		defer txn.End()
 		return txn.Range(key, end, ro)
 	}
-
+	// 简单的写入
 	normalPutFunc = func(kv KV, key, value []byte, lease lease.LeaseID) int64 {
 		return kv.Put(key, value, lease)
 	}
+	// 创建一个事务, 事务写
 	txnPutFunc = func(kv KV, key, value []byte, lease lease.LeaseID) int64 {
 		txn := kv.Write(traceutil.TODO())
 		defer txn.End()
@@ -252,6 +253,7 @@ func testKVRangeLimit(t *testing.T, f rangeFunc) {
 	}
 }
 
+// 多次 Put 同一个 key，会持续生成不同的版本
 func TestKVPutMultipleTimes(t *testing.T)    { testKVPutMultipleTimes(t, normalPutFunc) }
 func TestKVTxnPutMultipleTimes(t *testing.T) { testKVPutMultipleTimes(t, txnPutFunc) }
 
@@ -372,6 +374,7 @@ func TestKVOperationInSequence(t *testing.T) {
 			t.Errorf("#%d: put rev = %d, want %d", i, rev, base+1)
 		}
 
+		// get foo (注意版本号)
 		r, err := s.Range([]byte("foo"), nil, RangeOptions{Rev: base + 1})
 		if err != nil {
 			t.Fatal(err)
@@ -386,7 +389,7 @@ func TestKVOperationInSequence(t *testing.T) {
 			t.Errorf("#%d: range rev = %d, want %d", i, rev, base+1)
 		}
 
-		// delete foo
+		// delete foo (删除成功，版本号+1)
 		n, rev := s.DeleteRange([]byte("foo"), nil)
 		if n != 1 || rev != base+2 {
 			t.Errorf("#%d: n = %d, rev = %d, want (%d, %d)", i, n, rev, 1, base+2)
@@ -396,15 +399,18 @@ func TestKVOperationInSequence(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// 预期删干净了
 		if r.KVs != nil {
 			t.Errorf("#%d: kvs = %+v, want %+v", i, r.KVs, nil)
 		}
+		// 预期版本号 +1
 		if r.Rev != base+2 {
 			t.Errorf("#%d: range rev = %d, want %d", i, r.Rev, base+2)
 		}
 	}
 }
 
+// 该测试案例预期：写被事务阻塞
 func TestKVTxnBlockWriteOperations(t *testing.T) {
 	b, tmpPath := backend.NewDefaultTmpBackend()
 	s := NewStore(zap.NewExample(), b, &lease.FakeLessor{}, nil, StoreConfig{})
@@ -414,9 +420,11 @@ func TestKVTxnBlockWriteOperations(t *testing.T) {
 		func() { s.DeleteRange([]byte("foo"), nil) },
 	}
 	for i, tt := range tests {
+		// 创建出一个写事务
 		txn := s.Write(traceutil.TODO())
 		done := make(chan struct{}, 1)
 		go func() {
+			// 执行 Put，Delete 操作会被提前拉起的事务阻塞到（被 batchTx 的锁阻塞）
 			tt()
 			done <- struct{}{}
 		}()
@@ -426,6 +434,7 @@ func TestKVTxnBlockWriteOperations(t *testing.T) {
 		case <-time.After(10 * time.Millisecond):
 		}
 
+		// txn.End 里面才会释放锁，其他更新事务才能继续
 		txn.End()
 		select {
 		case <-done:
@@ -443,6 +452,7 @@ func TestKVTxnNonBlockRange(t *testing.T) {
 	s := NewStore(zap.NewExample(), b, &lease.FakeLessor{}, nil, StoreConfig{})
 	defer cleanup(s, b, tmpPath)
 
+	// 事务不阻塞读的操作( range 读其实没有加事务锁)
 	txn := s.Write(traceutil.TODO())
 	defer txn.End()
 
@@ -465,6 +475,7 @@ func TestKVTxnOperationInSequence(t *testing.T) {
 	defer cleanup(s, b, tmpPath)
 
 	for i := 0; i < 10; i++ {
+		// 创建事务
 		txn := s.Write(traceutil.TODO())
 		base := int64(i + 1)
 
@@ -474,6 +485,7 @@ func TestKVTxnOperationInSequence(t *testing.T) {
 			t.Errorf("#%d: put rev = %d, want %d", i, rev, base+1)
 		}
 
+		// range get
 		r, err := txn.Range([]byte("foo"), nil, RangeOptions{Rev: base + 1})
 		if err != nil {
 			t.Fatal(err)
@@ -505,6 +517,7 @@ func TestKVTxnOperationInSequence(t *testing.T) {
 			t.Errorf("#%d: range rev = %d, want %d", i, r.Rev, base+1)
 		}
 
+		// 事务结束
 		txn.End()
 	}
 }
@@ -586,6 +599,7 @@ func TestKVCompactBad(t *testing.T) {
 	}
 	for i, tt := range tests {
 		_, err := s.Compact(traceutil.TODO(), tt.rev)
+		// 预期错误
 		if err != tt.werr {
 			t.Errorf("#%d: compact error = %v, want %v", i, err, tt.werr)
 		}
@@ -608,6 +622,7 @@ func TestKVHash(t *testing.T) {
 		cleanup(kv, b, tmpPath)
 	}
 
+	// 预期：不同的 db 状态 hash 值不同
 	for i := 1; i < len(hashes); i++ {
 		if hashes[i-1] != hashes[i] {
 			t.Errorf("hash[%d](%d) != hash[%d](%d)", i-1, hashes[i-1], i, hashes[i])
@@ -615,6 +630,7 @@ func TestKVHash(t *testing.T) {
 	}
 }
 
+// 从持久化的文件中恢复数据
 func TestKVRestore(t *testing.T) {
 	tests := []func(kv KV){
 		func(kv KV) {
@@ -692,6 +708,7 @@ func TestKVSnapshot(t *testing.T) {
 	}
 	defer os.Remove(newPath)
 
+	// 创建一个快照句柄，写入数据到指定文件中
 	snap := s.b.Snapshot()
 	defer snap.Close()
 	_, err = snap.WriteTo(f)
@@ -719,6 +736,7 @@ func TestWatchableKVWatch(t *testing.T) {
 	s := WatchableKV(newWatchableStore(zap.NewExample(), b, &lease.FakeLessor{}, nil, nil, StoreConfig{}))
 	defer cleanup(s, b, tmpPath)
 
+	// 创建一个观测对象
 	w := s.NewWatchStream()
 	defer w.Close()
 
@@ -762,9 +780,11 @@ func TestWatchableKVWatch(t *testing.T) {
 	s.Put([]byte("foo"), []byte("bar"), 1)
 	select {
 	case resp := <-w.Chan():
+		// 预期 watch id 要一致
 		if resp.WatchID != wid {
 			t.Errorf("resp.WatchID got = %d, want = %d", resp.WatchID, wid)
 		}
+		// 预期 得到的通知内容符合预期
 		ev := resp.Events[0]
 		if !reflect.DeepEqual(ev, wev[0]) {
 			t.Errorf("watched event = %+v, want %+v", ev, wev[0])
@@ -780,6 +800,7 @@ func TestWatchableKVWatch(t *testing.T) {
 		if resp.WatchID != wid {
 			t.Errorf("resp.WatchID got = %d, want = %d", resp.WatchID, wid)
 		}
+		// 通知事件
 		ev := resp.Events[0]
 		if !reflect.DeepEqual(ev, wev[1]) {
 			t.Errorf("watched event = %+v, want %+v", ev, wev[1])
@@ -788,6 +809,7 @@ func TestWatchableKVWatch(t *testing.T) {
 		testutil.FatalStack(t, "failed to watch the event")
 	}
 
+	// 创建一个新的 watch
 	w = s.NewWatchStream()
 	wid, _ = w.Watch(0, []byte("foo1"), []byte("foo2"), 3)
 

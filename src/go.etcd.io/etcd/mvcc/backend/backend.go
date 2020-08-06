@@ -292,7 +292,7 @@ type IgnoreKey struct {
 	Key    string
 }
 
-// 计算 backend 的 hash 校验值
+// 遍历整个 db，计算 backend 的 hash 校验值
 func (b *backend) Hash(ignores map[IgnoreKey]struct{}) (uint32, error) {
 	h := crc32.New(crc32.MakeTable(crc32.Castagnoli))
 

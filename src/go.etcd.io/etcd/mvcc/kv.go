@@ -22,8 +22,8 @@ import (
 )
 
 type RangeOptions struct {
-	Limit int64
-	Rev   int64
+	Limit int64 // 最大返回多少个值
+	Rev   int64 // 版本; range 的值必须 <= Rev
 	Count bool
 }
 
@@ -102,9 +102,11 @@ func (trw *txnReadWrite) Changes() []mvccpb.KeyValue { return nil }
 
 func NewReadOnlyTxnWrite(txn TxnRead) TxnWrite { return &txnReadWrite{txn} }
 
-// kv 存储接口的封装
+// kv 存储接口的封装 (store 对象来负责实现了)
 type KV interface {
+	// 读操作界面
 	ReadView
+	// 写操作界面
 	WriteView
 
 	// 创建一个读事务
@@ -125,6 +127,7 @@ type KV interface {
 	// Compact frees all superseded keys with revisions less than rev.
 	Compact(trace *traceutil.Trace, rev int64) (<-chan struct{}, error)
 
+	// 事务递交
 	// Commit commits outstanding txns into the underlying backend.
 	Commit()
 

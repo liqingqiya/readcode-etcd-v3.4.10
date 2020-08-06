@@ -33,10 +33,12 @@ type storeTxnRead struct {
 }
 
 func (s *store) Read(trace *traceutil.Trace) TxnRead {
+	// store 的读锁
 	s.mu.RLock()
 	s.revMu.RLock()
 	// backend holds b.readTx.RLock() only when creating the concurrentReadTx. After
 	// ConcurrentReadTx is created, it will not block write transaction.
+	// 特殊的 ReadTx，锁操作是 no-op 操作；
 	tx := s.b.ConcurrentReadTx()
 	tx.RLock() // RLock is no-op. concurrentReadTx does not need to be locked after it is created.
 	firstRev, rev := s.compactMainRev, s.currentRev
@@ -69,9 +71,11 @@ type storeTxnWrite struct {
 KV.Put -> WriteView.Put
 */
 func (s *store) Write(trace *traceutil.Trace) TxnWrite {
+	// 注意下：这把锁没有立即释放，是在另一个函数里释放的 storeTxnWrite.End；
 	s.mu.RLock()
 	// 获取到事务的操作对象
 	tx := s.b.BatchTx()
+	// 注意下：这把锁没有立即释放，是在另一个函数里释放的 storeTxnWrite.End，所以写事务不能并发，这里 store 会做一个总体限制;
 	tx.Lock()
 	// 创建一个 txn write 对象, beginRev 设置成 s.currentRev
 	tw := &storeTxnWrite{
@@ -123,10 +127,12 @@ func (tw *storeTxnWrite) End() {
 		tw.s.revMu.Lock()
 		tw.s.currentRev++
 	}
+	// 这里才把锁释放了，这里和 store.Write 对应
 	tw.tx.Unlock()
 	if len(tw.changes) != 0 {
 		tw.s.revMu.Unlock()
 	}
+	// 这里才把读锁释放，和 store.Write（等） 对应
 	tw.s.mu.RUnlock()
 }
 

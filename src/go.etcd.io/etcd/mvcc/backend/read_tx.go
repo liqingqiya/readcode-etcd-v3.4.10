@@ -141,6 +141,7 @@ type concurrentReadTx struct {
 	txWg    *sync.WaitGroup
 }
 
+// 专门为了并发封装的 Tx，锁都是 no-op 操作；
 func (rt *concurrentReadTx) Lock()   {}
 func (rt *concurrentReadTx) Unlock() {}
 
