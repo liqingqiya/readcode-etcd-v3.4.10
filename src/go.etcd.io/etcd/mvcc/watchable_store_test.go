@@ -46,6 +46,7 @@ func TestWatch(t *testing.T) {
 	w := s.NewWatchStream()
 	w.Watch(0, testKey, nil, 0)
 
+	// 校验这个 key 是否被监听
 	if !s.synced.contains(string(testKey)) {
 		// the key must have had an entry in synced
 		t.Errorf("existence = false, want true")

@@ -134,9 +134,12 @@ func (s *watchableStore) watch(key, end []byte, startRev int64, id WatchID, ch c
 			wa.minRev = startRev
 		}
 	}
+	// 根据情况加入到对应的 WatchGroup 里
 	if synced {
+		// 常规都是在这里
 		s.synced.add(wa)
 	} else {
+		// 消费速度太慢的场景
 		slowWatcherGauge.Inc()
 		s.unsynced.add(wa)
 	}

@@ -19,14 +19,19 @@ import (
 	"go.etcd.io/etcd/pkg/traceutil"
 )
 
+// watcher txn 和普通的 txn 的核心区别
+// .End() 函数是唯一重写的，所以非常重要；
 func (tw *watchableStoreTxnWrite) End() {
+	// 获取变化
 	changes := tw.Changes()
 	if len(changes) == 0 {
+		// 没有变动，则直接调用底层 Enc 退出
 		tw.TxnWrite.End()
 		return
 	}
 
 	rev := tw.Rev() + 1
+	// 构建 events
 	evs := make([]mvccpb.Event, len(changes))
 	for i, change := range changes {
 		evs[i].Kv = &changes[i]
