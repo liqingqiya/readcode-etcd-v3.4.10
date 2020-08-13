@@ -72,6 +72,7 @@ func TestNewWatcherCancel(t *testing.T) {
 		t.Error(err)
 	}
 
+	// 取消的没有被监控
 	if s.synced.contains(string(testKey)) {
 		// the key shoud have been deleted
 		t.Errorf("existence = true, want false")

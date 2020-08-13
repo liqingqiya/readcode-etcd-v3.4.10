@@ -142,6 +142,7 @@ func (ws *watchStream) Chan() <-chan WatchResponse {
 
 func (ws *watchStream) Cancel(id WatchID) error {
 	ws.mu.Lock()
+	// cancel 的函数会在 watch 的时候确认，设置好
 	cancel, ok := ws.cancels[id]
 	w := ws.watchers[id]
 	ok = ok && !ws.closed

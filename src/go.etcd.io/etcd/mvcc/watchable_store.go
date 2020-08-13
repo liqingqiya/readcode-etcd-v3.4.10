@@ -151,6 +151,7 @@ func (s *watchableStore) watch(key, end []byte, startRev int64, id WatchID, ch c
 	return wa, func() { s.cancelWatcher(wa) }
 }
 
+// 取消某个 watcher
 // cancelWatcher removes references of the watcher from the watchableStore
 func (s *watchableStore) cancelWatcher(wa *watcher) {
 	for {
