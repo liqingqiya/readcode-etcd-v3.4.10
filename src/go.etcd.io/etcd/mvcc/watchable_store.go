@@ -114,6 +114,7 @@ func (s *watchableStore) NewWatchStream() WatchStream {
 	}
 }
 
+// ch: 和外部通信的 channel
 func (s *watchableStore) watch(key, end []byte, startRev int64, id WatchID, ch chan<- WatchResponse, fcs ...FilterFunc) (*watcher, cancelFunc) {
 	wa := &watcher{
 		key:    key,
@@ -133,9 +134,12 @@ func (s *watchableStore) watch(key, end []byte, startRev int64, id WatchID, ch c
 			wa.minRev = startRev
 		}
 	}
+	// 根据情况加入到对应的 WatchGroup 里
 	if synced {
+		// 常规都是在这里
 		s.synced.add(wa)
 	} else {
+		// 消费速度太慢的场景
 		slowWatcherGauge.Inc()
 		s.unsynced.add(wa)
 	}
@@ -147,6 +151,7 @@ func (s *watchableStore) watch(key, end []byte, startRev int64, id WatchID, ch c
 	return wa, func() { s.cancelWatcher(wa) }
 }
 
+// 取消某个 watcher
 // cancelWatcher removes references of the watcher from the watchableStore
 func (s *watchableStore) cancelWatcher(wa *watcher) {
 	for {
@@ -206,6 +211,7 @@ func (s *watchableStore) Restore(b backend.Backend) error {
 	return nil
 }
 
+// 同步状态给 watcher （每 100ms 一次）
 // syncWatchersLoop syncs the watcher in the unsynced map every 100ms.
 func (s *watchableStore) syncWatchersLoop() {
 	defer s.wg.Done()
@@ -453,6 +459,7 @@ func (s *watchableStore) notify(rev int64, evs []mvccpb.Event) {
 				plog.Panicf("unexpected multiple revisions in notification")
 			}
 		}
+		// 通知给 watcher
 		if w.send(WatchResponse{WatchID: w.id, Events: eb.evs, Revision: rev}) {
 			pendingEventsGauge.Add(float64(len(eb.evs)))
 		} else {
@@ -527,6 +534,7 @@ type watcher struct {
 	ch chan<- WatchResponse
 }
 
+// 响应
 func (w *watcher) send(wr WatchResponse) bool {
 	progressEvent := len(wr.Events) == 0
 

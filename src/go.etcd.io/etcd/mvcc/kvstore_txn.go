@@ -243,6 +243,7 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 	// btree 树上添加一个节点, keyIndex 里添加一个 revision
 	tw.s.kvindex.Put(key, idxRev)
 
+	// 添加到 changes
 	tw.changes = append(tw.changes, kv)
 	tw.trace.Step("store kv pair into bolt db")
 

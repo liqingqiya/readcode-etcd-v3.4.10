@@ -104,6 +104,7 @@ type watchStream struct {
 	watchers map[WatchID]*watcher
 }
 
+// 创建一个 watcher 在这个 watchStream 上，返回 watchid
 // Watch creates a new watcher in the stream and returns its WatchID.
 func (ws *watchStream) Watch(id WatchID, key, end []byte, startRev int64, fcs ...FilterFunc) (WatchID, error) {
 	// prevent wrong range where key >= end lexicographically
@@ -141,6 +142,7 @@ func (ws *watchStream) Chan() <-chan WatchResponse {
 
 func (ws *watchStream) Cancel(id WatchID) error {
 	ws.mu.Lock()
+	// cancel 的函数会在 watch 的时候确认，设置好
 	cancel, ok := ws.cancels[id]
 	w := ws.watchers[id]
 	ok = ok && !ws.closed

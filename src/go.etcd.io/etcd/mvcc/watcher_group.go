@@ -95,6 +95,7 @@ func newWatcherBatch(wg *watcherGroup, evs []mvccpb.Event) watcherBatch {
 	return wb
 }
 
+// watcher 集合，之所以用 map 估计也是为了索引快；
 type watcherSet map[*watcher]struct{}
 
 func (w watcherSet) add(wa *watcher) {
@@ -117,8 +118,10 @@ func (w watcherSet) delete(wa *watcher) {
 	delete(w, wa)
 }
 
+// 每个 key 对应的 watcher 集合
 type watcherSetByKey map[string]watcherSet
 
+// 添加到监听 key 的 watcher 集合
 func (w watcherSetByKey) add(wa *watcher) {
 	set := w[string(wa.key)]
 	if set == nil {
@@ -128,6 +131,7 @@ func (w watcherSetByKey) add(wa *watcher) {
 	set.add(wa)
 }
 
+// 从指定 key 的 watcher 集合里删除
 func (w watcherSetByKey) delete(wa *watcher) bool {
 	k := string(wa.key)
 	if v, ok := w[k]; ok {
@@ -143,13 +147,16 @@ func (w watcherSetByKey) delete(wa *watcher) bool {
 	return false
 }
 
+// watcherGroup 管理多个 watcher
 // watcherGroup is a collection of watchers organized by their ranges
 type watcherGroup struct {
 	// keyWatchers has the watchers that watch on a single key
+	// 两层结构，方便找到指定 key 所有的 watcher
 	keyWatchers watcherSetByKey
 	// ranges has the watchers that watch a range; it is sorted by interval
 	ranges adt.IntervalTree
 	// watchers is the set of all watchers
+	// 平坦结构，所有的 watcher 都在这个 map，可以快速索引；
 	watchers watcherSet
 }
 
@@ -182,15 +189,18 @@ func (wg *watcherGroup) add(wa *watcher) {
 	wg.ranges.Insert(ivl, ws)
 }
 
+// 判断某个 key 有没有被监听
 // contains is whether the given key has a watcher in the group.
 func (wg *watcherGroup) contains(key string) bool {
 	_, ok := wg.keyWatchers[key]
 	return ok || wg.ranges.Intersects(adt.NewStringAffinePoint(key))
 }
 
+// 总共有多少个监听者
 // size gives the number of unique watchers in the group.
 func (wg *watcherGroup) size() int { return len(wg.watchers) }
 
+// 删除某个监听者
 // delete removes a watcher from the group.
 func (wg *watcherGroup) delete(wa *watcher) bool {
 	if _, ok := wg.watchers[wa]; !ok {
