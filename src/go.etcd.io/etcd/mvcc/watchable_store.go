@@ -456,6 +456,7 @@ func (s *watchableStore) notify(rev int64, evs []mvccpb.Event) {
 		if w.send(WatchResponse{WatchID: w.id, Events: eb.evs, Revision: rev}) {
 			pendingEventsGauge.Add(float64(len(eb.evs)))
 		} else {
+			// 如果 watcher 的消费者太慢，则需要做相应调整，把这个 watcher 从 sync 移除;
 			// move slow watcher to victims
 			w.minRev = rev + 1
 			if victim == nil {
@@ -467,6 +468,7 @@ func (s *watchableStore) notify(rev int64, evs []mvccpb.Event) {
 			slowWatcherGauge.Inc()
 		}
 	}
+	// 记录下这些被强制淘汰到 unsync 的事件
 	s.addVictim(victim)
 }
 
