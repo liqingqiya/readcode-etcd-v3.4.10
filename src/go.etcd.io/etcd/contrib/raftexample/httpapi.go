@@ -114,6 +114,7 @@ func serveHttpKVAPI(kv *kvstore, port int, confChangeC chan<- raftpb.ConfChange,
 			confChangeC: confChangeC,
 		},
 	}
+	// 开始服务器监听
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
 			log.Fatal(err)
@@ -121,6 +122,7 @@ func serveHttpKVAPI(kv *kvstore, port int, confChangeC chan<- raftpb.ConfChange,
 	}()
 
 	// exit when raft goes down
+	// 运行出错了，需要关闭了
 	if err, ok := <-errorC; ok {
 		log.Fatal(err)
 	}
