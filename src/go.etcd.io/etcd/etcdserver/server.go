@@ -816,7 +816,7 @@ func (s *EtcdServer) start() {
 	go s.run()
 }
 
-// 过期日志清理
+// wal 过期日志清理
 func (s *EtcdServer) purgeFile() {
 	var dberrc, serrc, werrc <-chan error
 	var dbdonec, sdonec, wdonec <-chan struct{}

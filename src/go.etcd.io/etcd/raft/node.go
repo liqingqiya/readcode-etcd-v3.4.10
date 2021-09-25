@@ -225,6 +225,7 @@ type Peer struct {
 	Context []byte
 }
 
+// 创建一个新的 raft 状态机节点，传入需要的参数还有 raft 的节点列表；
 // StartNode returns a new Node given configuration and a list of raft peers.
 // It appends a ConfChangeAddNode entry for each given peer to the initial log.
 //
@@ -267,7 +268,7 @@ type msgWithResult struct {
 	result chan error
 }
 
-// 状态机的实现，对应一个节点
+// 状态机的实现，对应一个节点(这是基于 raft 之上做的功能整合)
 // node is the canonical implementation of the Node interface
 type node struct {
 	// 向 raft StateMachine 递交一个 op propose

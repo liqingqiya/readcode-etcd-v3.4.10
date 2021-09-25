@@ -328,6 +328,7 @@ type raft struct {
 	logger Logger
 }
 
+// raft 状态机
 func newRaft(c *Config) *raft {
 	if err := c.validate(); err != nil {
 		panic(err.Error())

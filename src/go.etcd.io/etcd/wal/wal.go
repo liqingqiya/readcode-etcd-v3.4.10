@@ -35,6 +35,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// wal 日志的 record 的类型
 const (
 	metadataType int64 = iota + 1
 	entryType
@@ -93,7 +94,7 @@ type WAL struct {
 	enti    uint64   // index of the last entry saved to the wal
 	encoder *encoder // encoder to encode records
 
-	locks []*fileutil.LockedFile // the locked files the WAL holds (the name is increasing)
+	locks []*fileutil.LockedFile // wal 的日志文件，锁上的，如果没被锁上的都是过期可被清理的；
 	fp    *filePipeline
 }
 
@@ -423,6 +424,7 @@ func openWALFiles(lg *zap.Logger, dirpath string, names []string, nameIndex int,
 	return rs, ls, closer, nil
 }
 
+// 把日志文件里的数据全部读到内存
 // ReadAll reads out records of the current WAL.
 // If opened in write mode, it must read out all records until EOF. Or an error
 // will be returned.
@@ -724,6 +726,7 @@ func (w *WAL) cut() error {
 	}
 
 	// update writer and save the previous crc
+	// 生成了新的 wal 文件，加到队列中；
 	w.locks = append(w.locks, newTail)
 	prevCrc := w.encoder.crc.Sum32()
 	w.encoder, err = newFileEncoder(w.tail().File, prevCrc)

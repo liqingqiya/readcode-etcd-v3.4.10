@@ -257,6 +257,7 @@ func (rc *raftNode) replayWAL() *wal.WAL {
 	if snapshot != nil {
 		rc.raftStorage.ApplySnapshot(*snapshot)
 	}
+	// 从日志里恢复出来的 hardstate 设置到 memorystorage 里去
 	rc.raftStorage.SetHardState(st)
 
 	// append to storage so raft starts at the right place in log
@@ -294,6 +295,7 @@ func (rc *raftNode) startRaft() {
 	for i := range rpeers {
 		rpeers[i] = raft.Peer{ID: uint64(i + 1)}
 	}
+	// 初始化 raft 状态机需要的配置
 	c := &raft.Config{
 		ID:                        uint64(rc.id),
 		ElectionTick:              10,

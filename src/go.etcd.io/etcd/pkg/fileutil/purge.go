@@ -58,6 +58,7 @@ func purgeFile(lg *zap.Logger, dirname string, suffix string, max uint, interval
 			fnames = newfnames
 			for len(newfnames) > int(max) {
 				f := filepath.Join(dirname, newfnames[0])
+				// 对于 wal 日志，加上锁了就是可以被清理。
 				l, err := TryLockFile(f, os.O_WRONLY, PrivateFileMode)
 				if err != nil {
 					break
