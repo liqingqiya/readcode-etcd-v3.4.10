@@ -328,6 +328,7 @@ func (rc *raftNode) startRaft() {
 
 	rc.transport.Start()
 	for i := range rc.peers {
+		// 初始化和集群其他节点通信的通道（本节点不初始化）
 		if i+1 != rc.id {
 			rc.transport.AddPeer(types.ID(i+1), []string{rc.peers[i]})
 		}

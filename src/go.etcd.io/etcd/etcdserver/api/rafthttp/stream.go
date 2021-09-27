@@ -372,8 +372,8 @@ type streamReader struct {
 	tr     *Transport
 	picker *urlPicker
 	status *peerStatus
-	recvc  chan<- raftpb.Message
-	propc  chan<- raftpb.Message
+	recvc  chan<- raftpb.Message // 接收队列
+	propc  chan<- raftpb.Message // 发送队列
 
 	rl *rate.Limiter // alters the frequency of dial retrial attempts
 
@@ -541,6 +541,7 @@ func (cr *streamReader) decodeLoop(rc io.ReadCloser, t streamType) error {
 		}
 
 		recvc := cr.recvc
+		// 如果是 MsgProp 的消息，那么就把消息投递到 propc 里面（准备向外发出）
 		if m.Type == raftpb.MsgProp {
 			recvc = cr.propc
 		}

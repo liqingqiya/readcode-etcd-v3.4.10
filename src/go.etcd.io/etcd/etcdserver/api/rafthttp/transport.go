@@ -128,7 +128,7 @@ type Transport struct {
 
 	mu      sync.RWMutex         // protect the remote and peer map
 	remotes map[types.ID]*remote // remotes map that helps newly joined member to catch up
-	peers   map[types.ID]Peer    // peers map
+	peers   map[types.ID]Peer    // peers map（存储其他节点的通信对象）
 
 	pipelineProber probing.Prober
 	streamProber   probing.Prober
@@ -300,6 +300,9 @@ func (t *Transport) AddRemote(id types.ID, us []string) {
 	}
 }
 
+// 初始化通信地址
+// id 是节点的索引，表示第几个节点
+// us 是节点网络地址
 func (t *Transport) AddPeer(id types.ID, us []string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -310,6 +313,7 @@ func (t *Transport) AddPeer(id types.ID, us []string) {
 	if _, ok := t.peers[id]; ok {
 		return
 	}
+	// 其他节点的 url 地址
 	urls, err := types.NewURLs(us)
 	if err != nil {
 		if t.Logger != nil {
@@ -319,6 +323,7 @@ func (t *Transport) AddPeer(id types.ID, us []string) {
 		}
 	}
 	fs := t.LeaderStats.Follower(id.String())
+	// 网络节点对象
 	t.peers[id] = startPeer(t, urls, id, fs)
 	addPeerToProber(t.Logger, t.pipelineProber, id.String(), us, RoundTripperNameSnapshot, rttSec)
 	addPeerToProber(t.Logger, t.streamProber, id.String(), us, RoundTripperNameRaftMessage, rttSec)

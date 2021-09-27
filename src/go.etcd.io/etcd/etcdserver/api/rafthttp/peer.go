@@ -123,6 +123,7 @@ type peer struct {
 	stopc  chan struct{}
 }
 
+// 开启网络处理的协程
 func startPeer(t *Transport, urls types.URLs, peerID types.ID, fs *stats.FollowerStats) *peer {
 	if t.Logger != nil {
 		t.Logger.Info("starting remote peer", zap.String("remote-peer-id", peerID.String()))
@@ -138,8 +139,10 @@ func startPeer(t *Transport, urls types.URLs, peerID types.ID, fs *stats.Followe
 	}()
 
 	status := newPeerStatus(t.Logger, t.ID, peerID)
+	// 获取到地址的对象
 	picker := newURLPicker(urls)
 	errorc := t.ErrorC
+	// raft 状态机
 	r := t.Raft
 	pipeline := &pipeline{
 		peerID:        peerID,
@@ -174,6 +177,7 @@ func startPeer(t *Transport, urls types.URLs, peerID types.ID, fs *stats.Followe
 		for {
 			select {
 			case mm := <-p.recvc:
+				// 使用的是 raft 状态机的 Process 方法 （处理网络收到的消息）
 				if err := r.Process(ctx, mm); err != nil {
 					if t.Logger != nil {
 						t.Logger.Warn("failed to process Raft message", zap.Error(err))
@@ -194,6 +198,7 @@ func startPeer(t *Transport, urls types.URLs, peerID types.ID, fs *stats.Followe
 		for {
 			select {
 			case mm := <-p.propc:
+				// 处理网路将要发出的消息
 				if err := r.Process(ctx, mm); err != nil {
 					plog.Warningf("failed to process raft message (%v)", err)
 				}

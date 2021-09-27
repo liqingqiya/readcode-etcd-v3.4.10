@@ -22,8 +22,11 @@ import (
 )
 
 func main() {
+	// 集群配置（ raft 集群配置）
 	cluster := flag.String("cluster", "http://127.0.0.1:9021", "comma separated cluster peers")
+	// 集群的第几个节点
 	id := flag.Int("id", 1, "node ID")
+	// 业务端口
 	kvport := flag.Int("port", 9121, "key-value server port")
 	join := flag.Bool("join", false, "join an existing cluster")
 	flag.Parse()

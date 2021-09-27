@@ -71,6 +71,7 @@ type Storage interface {
 	Snapshot() (pb.Snapshot, error)
 }
 
+// 用于检索日志的对象
 // MemoryStorage implements the Storage interface backed by an
 // in-memory array.
 type MemoryStorage struct {

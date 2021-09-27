@@ -69,6 +69,7 @@ func (ls *LeaderStats) Follower(name string) *FollowerStats {
 	return fs
 }
 
+// 统计一些静态信息
 // FollowerStats encapsulates various statistics about a follower in an etcd cluster
 type FollowerStats struct {
 	Latency LatencyStats `json:"latency"`
