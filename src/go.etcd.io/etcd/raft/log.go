@@ -77,6 +77,7 @@ func newLogWithSize(storage Storage, logger Logger, maxNextEntsSize uint64) *raf
 	log.unstable.offset = lastIndex + 1
 	log.unstable.logger = logger
 	// Initialize our committed and applied pointers to the time of the last compaction.
+	// 初始化一个默认的值，committted，applied 都为第一条，所以如果没 apply 没其他设置，那么就会从第一条往后重新走一遍 commit/apply 的流程。
 	log.committed = firstIndex - 1
 	log.applied = firstIndex - 1
 

@@ -278,6 +278,7 @@ func (p *ProgressTracker) ResetVotes() {
 func (p *ProgressTracker) RecordVote(id uint64, v bool) {
 	_, ok := p.Votes[id]
 	if !ok {
+		// 把对应节点的投票结果记录下来
 		p.Votes[id] = v
 	}
 }

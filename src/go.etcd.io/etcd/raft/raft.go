@@ -468,6 +468,7 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 
 	// 获取指定节点的一个进度信息，如果有异常，那么就发送快照信息过去给他同步
 	term, errt := r.raftLog.term(pr.Next - 1)
+	// next 之后的是要复制的日志
 	ents, erre := r.raftLog.entries(pr.Next, r.maxMsgSize)
 
 	// bcastAppend 的场景，就算是 entries 是空的，也会发送一条空的信息过去,
@@ -476,7 +477,7 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 		return false
 	}
 
-	// 如果获取 term， entries 失败了，那么久发送 snapshot 信息
+	// 如果获取 term， entries 失败了，那么发送 snapshot 信息
 	if errt != nil || erre != nil { // send snapshot if we failed to get term or entries
 		if !pr.RecentActive {
 			r.logger.Debugf("ignore sending snapshot to %x since it is not recently active", to)
@@ -550,8 +551,8 @@ func (r *raft) sendHeartbeat(to uint64, ctx []byte) {
 	r.send(m)
 }
 
-// 由 leader 或者 candidate 调用，发送消息
-// 根据 r.prs 进度条发送
+// 由 leader 调用，发送消息
+// 根据 r.prs 进度条发送，向所有的非最新的节点发送日志
 // bcastAppend sends RPC, with entries to all peers that are not up-to-date
 // according to the progress recorded in r.prs.
 func (r *raft) bcastAppend() {
@@ -730,6 +731,7 @@ func (r *raft) tickHeartbeat() {
 	}
 
 	// 到点了，要给 followers 发送定期消息了，以免他们起异心
+	// 这个消息会到 stepLeader 里面进行处理，会触发 leader 广播发送 MsgHeartbeat 消息给所有节点
 	if r.heartbeatElapsed >= r.heartbeatTimeout {
 		r.heartbeatElapsed = 0
 		r.Step(pb.Message{From: r.id, Type: pb.MsgBeat})
@@ -822,11 +824,13 @@ func (r *raft) campaign(t CampaignType) {
 	var term uint64
 	var voteMsg pb.MessageType
 	if t == campaignPreElection {
+		// 如果开启了两阶段的选举
 		r.becomePreCandidate()
 		voteMsg = pb.MsgPreVote
 		// PreVote RPCs are sent for the next term before we've incremented r.Term.
 		term = r.Term + 1
 	} else {
+		// 变成候选者，准备发送选举消息 MsgVote
 		r.becomeCandidate()
 		voteMsg = pb.MsgVote
 		term = r.Term
@@ -871,7 +875,9 @@ func (r *raft) poll(id uint64, t pb.MessageType, v bool) (granted int, rejected 
 	} else {
 		r.logger.Infof("%x received %s rejection from %x at term %d", r.id, t, id, r.Term)
 	}
+	// 计票
 	r.prs.RecordVote(id, v)
+	// 唱票
 	return r.prs.TallyVotes()
 }
 
@@ -973,6 +979,7 @@ func (r *raft) Step(m pb.Message) error {
 			}
 
 			r.logger.Infof("%x is starting a new election at term %d", r.id, r.Term)
+			// 如果开启了两阶段选举（可配）
 			if r.preVote {
 				r.campaign(campaignPreElection)
 			} else {
@@ -1370,14 +1377,18 @@ func stepCandidate(r *raft, m pb.Message) error {
 	case pb.MsgSnap:
 		r.becomeFollower(m.Term, m.From) // always m.Term == r.Term
 		r.handleSnapshot(m)
+	// 投票的结果回来了（ vote 或者 prevote ）
 	case myVoteRespType:
 		gr, rj, res := r.poll(m.From, m.Type, !m.Reject)
 		r.logger.Infof("%x has received %d %s votes and %d vote rejections", r.id, gr, m.Type, rj)
 		switch res {
 		case quorum.VoteWon:
+			// 获得了大多数的认可，觉得自己能赢，那么才会开启选举
 			if r.state == StatePreCandidate {
+				// 如果是预投的情况，那么现在基本就稳了，就可以正式开始拉票选举
 				r.campaign(campaignElection)
 			} else {
+				// 如果是投票的场景，那么这就成功了，变成 leader
 				r.becomeLeader()
 				r.bcastAppend()
 			}

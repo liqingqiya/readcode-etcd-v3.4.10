@@ -85,6 +85,7 @@ func newPipelineHandler(t *Transport, r Raft, cid types.ID) http.Handler {
 	}
 }
 
+// 收到 pipeline 通道的消息
 func (h *pipelineHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		w.Header().Set("Allow", "POST")

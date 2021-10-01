@@ -268,7 +268,7 @@ type msgWithResult struct {
 	result chan error
 }
 
-// 状态机的实现，对应一个节点(这是基于 raft 之上做的功能整合)
+// 状态机的实现，对应一个节点(这是基于 raft 之上做的整合)
 // node is the canonical implementation of the Node interface
 type node struct {
 	// 向 raft StateMachine 递交一个 op propose
