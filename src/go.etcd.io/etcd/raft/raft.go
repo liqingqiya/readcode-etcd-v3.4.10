@@ -506,9 +506,12 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 	} else {
 		// 消息类型转变成 MsgApp ，网络发出去
 		m.Type = pb.MsgApp
+		// 已经复制了的最新的 lastindex
 		m.Index = pr.Next - 1
+		// 任期
 		m.LogTerm = term
 		m.Entries = ents
+		// 日志已经 commit 的 index 位置
 		m.Commit = r.raftLog.committed
 		if n := len(m.Entries); n != 0 {
 			switch pr.State {
@@ -519,6 +522,7 @@ func (r *raft) maybeSendAppend(to uint64, sendIfEmpty bool) bool {
 				// 滑动窗口
 				pr.Inflights.Add(last)
 			case tracker.StateProbe:
+				// 打一个标记，探测期间，不发送消息
 				pr.ProbeSent = true
 			default:
 				r.logger.Panicf("%x is sending append in unhandled state %s", r.id, pr.State)
@@ -816,6 +820,7 @@ func (r *raft) becomeLeader() {
 // campaign transitions the raft instance to candidate state. This must only be
 // called after verifying that this is a legitimate transition.
 func (r *raft) campaign(t CampaignType) {
+	// 能否升级为 leader ？
 	if !r.promotable() {
 		// This path should not be hit (callers are supposed to check), but
 		// better safe than sorry.
@@ -964,6 +969,7 @@ func (r *raft) Step(m pb.Message) error {
 	// 处理选举相关
 	switch m.Type {
 	case pb.MsgHup:
+		// 本地产生的竞争选举的消息，说明超时了，下一步就是要开启选举了
 		if r.state != StateLeader {
 			if !r.promotable() {
 				r.logger.Warningf("%x is unpromotable and can not campaign; ignoring MsgHup", r.id)
@@ -990,6 +996,7 @@ func (r *raft) Step(m pb.Message) error {
 		}
 
 	case pb.MsgVote, pb.MsgPreVote:
+		// 其他节点的选举求票的消息
 		// We can vote if this is a repeat of a vote we've already cast...
 		canVote := r.Vote == m.From ||
 			// ...we haven't voted and we don't think there's a leader yet in this term...
@@ -1029,6 +1036,7 @@ func (r *raft) Step(m pb.Message) error {
 			// same in the case of regular votes, but different for pre-votes.
 			r.send(pb.Message{To: m.From, Term: m.Term, Type: voteRespMsgType(m.Type)})
 			if m.Type == pb.MsgVote {
+				// 真正投票之后，计数清零
 				// Only record real votes.
 				r.electionElapsed = 0
 				r.Vote = m.From
@@ -1198,7 +1206,7 @@ func stepLeader(r *raft, m pb.Message) error {
 	switch m.Type {
 	case pb.MsgAppResp:
 		pr.RecentActive = true
-
+		// leader 的处理
 		// 如果收到的是拒绝，那么准备下一步处理;
 		if m.Reject {
 			// 收到 follower 的拒绝消息，所以准备进入 probe 状态，探测正确的日志复制的位置
@@ -1379,6 +1387,7 @@ func stepCandidate(r *raft, m pb.Message) error {
 		r.handleSnapshot(m)
 	// 投票的结果回来了（ vote 或者 prevote ）
 	case myVoteRespType:
+		// 回票还不足以出结果的时候，就是 pending 的结果；
 		gr, rj, res := r.poll(m.From, m.Type, !m.Reject)
 		r.logger.Infof("%x has received %d %s votes and %d vote rejections", r.id, gr, m.Type, rj)
 		switch res {
@@ -1491,6 +1500,7 @@ func (r *raft) handleAppendEntries(m pb.Message) {
 	} else {
 		r.logger.Debugf("%x [logterm: %d, index: %d] rejected MsgApp [logterm: %d, index: %d] from %x",
 			r.id, r.raftLog.zeroTermOnErrCompacted(r.raftLog.term(m.Index)), m.Index, m.LogTerm, m.Index, m.From)
+		// 返回拒绝消息，RejectHint 设置成最后一条日志的 index ；
 		r.send(pb.Message{To: m.From, Type: pb.MsgAppResp, Index: m.Index, Reject: true, RejectHint: r.raftLog.lastIndex()})
 	}
 }

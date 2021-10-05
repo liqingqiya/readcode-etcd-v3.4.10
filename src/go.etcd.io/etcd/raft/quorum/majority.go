@@ -122,6 +122,7 @@ func insertionSort(sl []uint64) {
 	}
 }
 
+// 计算出 commit index 的位置（被多数 commit 的）
 // CommittedIndex computes the committed index from those supplied via the
 // provided AckedIndexer (for the active config).
 func (c MajorityConfig) CommittedIndex(l AckedIndexer) Index {

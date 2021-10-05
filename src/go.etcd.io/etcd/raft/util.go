@@ -40,6 +40,7 @@ func max(a, b uint64) uint64 {
 	return b
 }
 
+// 内部产生的消息？
 func IsLocalMsg(msgt pb.MessageType) bool {
 	return msgt == pb.MsgHup || msgt == pb.MsgBeat || msgt == pb.MsgUnreachable ||
 		msgt == pb.MsgSnapStatus || msgt == pb.MsgCheckQuorum
@@ -51,6 +52,7 @@ func IsResponseMsg(msgt pb.MessageType) bool {
 
 // voteResponseType maps vote and prevote message types to their corresponding responses.
 func voteRespMsgType(msgt pb.MessageType) pb.MessageType {
+	// 返回对应的 response
 	switch msgt {
 	case pb.MsgVote:
 		return pb.MsgVoteResp

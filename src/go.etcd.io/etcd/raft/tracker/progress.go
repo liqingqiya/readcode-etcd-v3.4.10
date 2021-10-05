@@ -215,7 +215,7 @@ func (pr *Progress) MaybeDecrTo(rejected, last uint64) bool {
 		return false
 	}
 
-	//
+	// 往前
 	if pr.Next = min(rejected, last+1); pr.Next < 1 {
 		pr.Next = 1
 	}

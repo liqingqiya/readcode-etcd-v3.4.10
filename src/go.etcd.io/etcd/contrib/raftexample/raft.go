@@ -186,6 +186,7 @@ func (rc *raftNode) publishEntries(ents []raftpb.Entry) bool {
 				}
 			case raftpb.ConfChangeRemoveNode:
 				if cc.NodeID == uint64(rc.id) {
+					// 自己被移除集群，启动自毁；
 					log.Println("I've been removed from the cluster! Shutting down.")
 					return false
 				}

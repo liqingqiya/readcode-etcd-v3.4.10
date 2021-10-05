@@ -471,7 +471,8 @@ func joint(cfg tracker.Config) bool {
 
 // 这里就体现了 JointConfig 为[2]数组的原因
 // C_old 配置，当前配置
-func incoming(voters quorum.JointConfig) quorum.MajorityConfig      { return voters[0] }
+func incoming(voters quorum.JointConfig) quorum.MajorityConfig { return voters[0] }
+
 // C_new 配置，配置变更
 func outgoing(voters quorum.JointConfig) quorum.MajorityConfig      { return voters[1] }
 func outgoingPtr(voters *quorum.JointConfig) *quorum.MajorityConfig { return &voters[1] }

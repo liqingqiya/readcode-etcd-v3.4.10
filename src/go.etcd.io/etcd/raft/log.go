@@ -90,6 +90,7 @@ func (l *raftLog) String() string {
 
 // maybeAppend returns (0, false) if the entries cannot be appended. Otherwise,
 // it returns (last index of new entries, true).
+// index 当前已经复制了的最后一条日志的 index
 func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...pb.Entry) (lastnewi uint64, ok bool) {
 	// 判断 index 所对应的日志是否 term 匹配
 	if l.matchTerm(index, logTerm) {
@@ -104,6 +105,7 @@ func (l *raftLog) maybeAppend(index, logTerm, committed uint64, ents ...pb.Entry
 		case ci <= l.committed:
 			l.logger.Panicf("entry %d conflict with committed entry [committed(%d)]", ci, l.committed)
 		default:
+			// 新日志也是走这个
 			// 有冲突的场景，裁剪
 			offset := index + 1
 			// 裁剪，append 消息到 raftLog 中
@@ -140,6 +142,7 @@ func (l *raftLog) append(ents ...pb.Entry) uint64 {
 // a different term.
 // The first entry MUST have an index equal to the argument 'from'.
 // The index of the given entries MUST be continuously increasing.
+// 这个函数有点误导，对于那种越界的，完全是新的，也是直接返回 index 的；
 func (l *raftLog) findConflict(ents []pb.Entry) uint64 {
 	// 遍历 ents
 	for _, ne := range ents {
@@ -306,6 +309,9 @@ func (l *raftLog) allEntries() []pb.Entry {
 // whichever log has the larger lastIndex is more up-to-date. If the logs are
 // the same, the given log is up-to-date.
 func (l *raftLog) isUpToDate(lasti, term uint64) bool {
+	// 判断是否是最新的日志消息
+	// 先比较 term，term 大的新
+	// 如果 term 相等，那么比较 index ，index 大的新
 	return term > l.lastTerm() || (term == l.lastTerm() && lasti >= l.lastIndex())
 }
 
