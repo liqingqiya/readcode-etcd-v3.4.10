@@ -638,6 +638,7 @@ func newReady(r *raft, prevSoftSt *SoftState, prevHardSt pb.HardState) Ready {
 	if r.raftLog.unstable.snapshot != nil {
 		rd.Snapshot = *r.raftLog.unstable.snapshot
 	}
+	// readstate 以 ready 数据返回出去
 	if len(r.readStates) != 0 {
 		rd.ReadStates = r.readStates
 	}

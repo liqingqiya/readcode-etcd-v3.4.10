@@ -49,6 +49,7 @@ func newReadOnly(option ReadOnlyOption) *readOnly {
 	}
 }
 
+// 添加一个 read only 请求
 // addRequest adds a read only reuqest into readonly struct.
 // `index` is the commit index of the raft state machine when it received
 // the read only request.
@@ -58,7 +59,9 @@ func (ro *readOnly) addRequest(index uint64, m pb.Message) {
 	if _, ok := ro.pendingReadIndex[s]; ok {
 		return
 	}
+	// ctx 和一个 status 加入 map
 	ro.pendingReadIndex[s] = &readIndexStatus{index: index, req: m, acks: make(map[uint64]bool)}
+	// ctx 加入数组
 	ro.readIndexQueue = append(ro.readIndexQueue, s)
 }
 
@@ -66,15 +69,17 @@ func (ro *readOnly) addRequest(index uint64, m pb.Message) {
 // an acknowledgment of the heartbeat that attached with the read only request
 // context.
 func (ro *readOnly) recvAck(id uint64, context []byte) map[uint64]bool {
+	// 根据 ctx 找到这个 status
 	rs, ok := ro.pendingReadIndex[string(context)]
 	if !ok {
 		return nil
 	}
-
+	// 添加对应的节点 ack 到这个 status
 	rs.acks[id] = true
 	return rs.acks
 }
 
+// 只在 heartbeat resp 里调用
 // advance advances the read only request queue kept by the readonly struct.
 // It dequeues the requests until it finds the read only request that has
 // the same context as the given `m`.
@@ -87,13 +92,16 @@ func (ro *readOnly) advance(m pb.Message) []*readIndexStatus {
 	ctx := string(m.Context)
 	rss := []*readIndexStatus{}
 
+	// 遍历 ctx 数组
 	for _, okctx := range ro.readIndexQueue {
 		i++
 		rs, ok := ro.pendingReadIndex[okctx]
 		if !ok {
 			panic("cannot find corresponding read state from pending map")
 		}
+		// 找到指定之前的全部添加到 rss 数组
 		rss = append(rss, rs)
+		// 找到指定的 ctx
 		if okctx == ctx {
 			found = true
 			break
@@ -101,8 +109,10 @@ func (ro *readOnly) advance(m pb.Message) []*readIndexStatus {
 	}
 
 	if found {
+		// ro.readIndexQueue 找到指定的位置，前面的截断
 		ro.readIndexQueue = ro.readIndexQueue[i:]
 		for _, rs := range rss {
+			// 清理掉 map 里对应的 ctx（ 全都是目标前面的 ）
 			delete(ro.pendingReadIndex, string(rs.req.Entries[0].Data))
 		}
 		return rss
@@ -117,5 +127,6 @@ func (ro *readOnly) lastPendingRequestCtx() string {
 	if len(ro.readIndexQueue) == 0 {
 		return ""
 	}
+	// 最新的一个 readindex 请求
 	return ro.readIndexQueue[len(ro.readIndexQueue)-1]
 }

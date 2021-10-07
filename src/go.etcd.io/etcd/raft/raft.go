@@ -49,12 +49,14 @@ type ReadOnlyOption int
 const (
 	// ReadOnlySafe guarantees the linearizability of the read only request by
 	// communicating with the quorum. It is the default and suggested option.
+	// readindex 必须满足 quorum
 	ReadOnlySafe ReadOnlyOption = iota
 	// ReadOnlyLeaseBased ensures linearizability of the read only request by
 	// relying on the leader lease. It can be affected by clock drift.
 	// If the clock drift is unbounded, leader might keep the lease longer than it
 	// should (clock can move backward/pause without any bound). ReadIndex is not safe
 	// in that case.
+	// 只需要满足 leader lease 即可，但是时钟可能是不靠谱的
 	ReadOnlyLeaseBased
 )
 
@@ -1161,6 +1163,7 @@ func stepLeader(r *raft, m pb.Message) error {
 		r.bcastAppend()
 		return nil
 	case pb.MsgReadIndex:
+		// leader 收到 readindex 请求
 		// If more than the local vote is needed, go through a full broadcast,
 		// otherwise optimize.
 		if !r.prs.IsSingleton() {
@@ -1177,6 +1180,7 @@ func stepLeader(r *raft, m pb.Message) error {
 				r.readOnly.addRequest(r.raftLog.committed, m)
 				// The local node automatically acks the request.
 				r.readOnly.recvAck(r.id, m.Entries[0].Data)
+				// 广播发送心跳给所有 follower 节点
 				r.bcastHeartbeatWithCtx(m.Entries[0].Data)
 			case ReadOnlyLeaseBased:
 				ri := r.raftLog.committed
@@ -1287,12 +1291,15 @@ func stepLeader(r *raft, m pb.Message) error {
 			return nil
 		}
 
+		// 因为 read index 是发送 heartbeat 消息出去的，所以自然是在 heartbeat resp 里判断
 		rss := r.readOnly.advance(m)
 		for _, rs := range rss {
 			req := rs.req
 			if req.From == None || req.From == r.id { // from local member
+				// 如果是本节点，那么就加到本节点的 readstate 数组
 				r.readStates = append(r.readStates, ReadState{Index: rs.index, RequestCtx: req.Entries[0].Data})
 			} else {
+				// 如果是其他节点，那么就发送给其他节点，哪里来的回哪去
 				r.send(pb.Message{To: req.From, Type: pb.MsgReadIndexResp, Index: rs.index, Entries: req.Entries})
 			}
 		}
@@ -1468,6 +1475,7 @@ func stepFollower(r *raft, m pb.Message) error {
 			r.logger.Infof("%x received MsgTimeoutNow from %x but is not promotable", r.id, m.From)
 		}
 	case pb.MsgReadIndex:
+		// follower 节点收到 readindex 请求，转发 leader 处理
 		if r.lead == None {
 			r.logger.Infof("%x no leader at term %d; dropping index reading msg", r.id, r.Term)
 			return nil
@@ -1475,10 +1483,12 @@ func stepFollower(r *raft, m pb.Message) error {
 		m.To = r.lead
 		r.send(m)
 	case pb.MsgReadIndexResp:
+		// 这种场景一般是 follower 收到发起的 radindex 请求，然后会转发给 leader ，leader 处理完之后回复 readindex resp 消息，就会走到这里
 		if len(m.Entries) != 1 {
 			r.logger.Errorf("%x invalid format of MsgReadIndexResp from %x, entries count: %d", r.id, m.From, len(m.Entries))
 			return nil
 		}
+		// follower 节点
 		r.readStates = append(r.readStates, ReadState{Index: m.Index, RequestCtx: m.Entries[0].Data})
 	}
 	return nil
