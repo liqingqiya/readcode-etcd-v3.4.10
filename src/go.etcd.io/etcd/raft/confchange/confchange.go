@@ -311,6 +311,7 @@ func (c Changer) initProgress(cfg *tracker.Config, prs tracker.ProgressMap, id u
 		// at all (and will thus likely need a snapshot), though the app may
 		// have applied a snapshot out of band before adding the replica (thus
 		// making the first index the better choice).
+		// 初始进度：设置为最后的位置，从后往前试。
 		Next:      c.LastIndex,
 		Match:     0,
 		Inflights: tracker.NewInflights(c.Tracker.MaxInflight),

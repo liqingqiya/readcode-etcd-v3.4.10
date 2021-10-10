@@ -132,6 +132,14 @@ func Restore(chg Changer, cs pb.ConfState) (tracker.Config, tracker.ProgressMap,
 			})
 		}
 	} else {
+		// 恢复 joint 状态的配置，采用的方法还挺巧秒，比如保存的如果是 (1,2,3) & (2,3,4)：
+		// 1. 先把 outgoing 的恢复成 incoming 的位置。就先变成了 (2,3,4) & ()
+		// 2. 然后进入 joint 状态，就先从左到右复制变成 (2,3,4)&(2,3,4)
+		// 3. 最后应用 incomming 的 change ;
+		// 		1. remove 2,3,4 => (1,) & (2,3,4)
+		// 		2. add    1,2,3 => (1,2,3) & (2,3,4)
+		// 		3. 就变成了 (1,2,3) &(2,3,4) ，这不就恢复了嘛
+
 		// The ConfState describes a joint configuration.
 		//
 		// First, apply all of the changes of the outgoing config one by one, so

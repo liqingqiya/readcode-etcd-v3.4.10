@@ -336,6 +336,7 @@ func newRaft(c *Config) *raft {
 		panic(err.Error())
 	}
 	raftlog := newLogWithSize(c.Storage, c.Logger, c.MaxCommittedSizePerReady)
+	// 获取持久化的集群配置
 	hs, cs, err := c.Storage.InitialState()
 	if err != nil {
 		panic(err) // TODO(bdarnell)
@@ -369,6 +370,7 @@ func newRaft(c *Config) *raft {
 		disableProposalForwarding: c.DisableProposalForwarding,
 	}
 
+	// 从持久化的 cs 数据中恢复集群配置
 	cfg, prs, err := confchange.Restore(confchange.Changer{
 		Tracker:   r.prs,
 		LastIndex: raftlog.lastIndex(),
@@ -376,6 +378,7 @@ func newRaft(c *Config) *raft {
 	if err != nil {
 		panic(err)
 	}
+	// 初始化集群配置 switchToConfig
 	assertConfStatesEquivalent(r.logger, cs, r.switchToConfig(cfg, prs))
 
 	if !IsEmptyHardState(hs) {
@@ -592,7 +595,7 @@ func (r *raft) bcastHeartbeatWithCtx(ctx []byte) {
 	})
 }
 
-// 内部运转
+// 调用 advance 说明 rd 已经被 apply 了，这个是需要外部自行保证的
 func (r *raft) advance(rd Ready) {
 	// If entries were applied (or a snapshot), update our cursor for
 	// the next Ready. Note that if the current HardState contains a
@@ -1615,6 +1618,9 @@ func (r *raft) restore(s pb.Snapshot) bool {
 	return true
 }
 
+// 是否可以升级为 leader ？需要满足两个条件：
+// 1. 自己在 progress 列表中
+// 2. 不是 learner 角色
 // promotable indicates whether state machine can be promoted to leader,
 // which is true when its own id is in progress list.
 func (r *raft) promotable() bool {
@@ -1700,6 +1706,8 @@ func (r *raft) switchToConfig(cfg tracker.Config, prs tracker.ProgressMap) pb.Co
 		// Otherwise, still probe the newly added replicas; there's no reason to
 		// let them wait out a heartbeat interval (or the next incoming
 		// proposal).
+		// 其实发送日志（特别是 empty 日志）就相当于在 probe 了。
+		// 集群初始化的时候，就可以广播发送 probe 消息，而没必要硬生生等待心跳；
 		r.prs.Visit(func(id uint64, pr *tracker.Progress) {
 			r.maybeSendAppend(id, false /* sendIfEmpty */)
 		})

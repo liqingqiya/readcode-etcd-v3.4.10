@@ -86,12 +86,15 @@ func (u *unstable) stableTo(i, t uint64) {
 	// only update the unstable entries if term is matched with
 	// an unstable entry.
 	if gt == t && i >= u.offset {
+		// 裁掉前面的日志，因为已经持久化了
 		u.entries = u.entries[i+1-u.offset:]
+		// 更新 offset 为 unstable 第一个位置的 index
 		u.offset = i + 1
 		u.shrinkEntriesArray()
 	}
 }
 
+// 这个函数其实是避免内存泄漏的，因为 slice 可能因为占用了一些不用的元素而释放不掉。
 // shrinkEntriesArray discards the underlying array used by the entries slice
 // if most of it isn't being used. This avoids holding references to a bunch of
 // potentially large entries that aren't needed anymore. Simply clearing the
@@ -105,6 +108,7 @@ func (u *unstable) shrinkEntriesArray() {
 	if len(u.entries) == 0 {
 		u.entries = nil
 	} else if len(u.entries)*lenMultiple < cap(u.entries) {
+		// 如果元素个数远小于物理空间的分配（2倍），那么就重新构造数组，避免内存占用。
 		newEntries := make([]pb.Entry, len(u.entries))
 		copy(newEntries, u.entries)
 		u.entries = newEntries

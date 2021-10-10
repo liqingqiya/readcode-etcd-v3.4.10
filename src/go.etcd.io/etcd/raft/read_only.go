@@ -42,6 +42,7 @@ type readOnly struct {
 	readIndexQueue   []string
 }
 
+// 配合 readindex 请求使用的结构体
 func newReadOnly(option ReadOnlyOption) *readOnly {
 	return &readOnly{
 		option:           option,
@@ -49,7 +50,7 @@ func newReadOnly(option ReadOnlyOption) *readOnly {
 	}
 }
 
-// 添加一个 read only 请求
+// 添加一个 read only 请求，收到 MsgReadIndex 请求的时候调用。
 // addRequest adds a read only reuqest into readonly struct.
 // `index` is the commit index of the raft state machine when it received
 // the read only request.
@@ -65,6 +66,10 @@ func (ro *readOnly) addRequest(index uint64, m pb.Message) {
 	ro.readIndexQueue = append(ro.readIndexQueue, s)
 }
 
+// 收到 节点：$id 的回应，则添加到对应 map 中，并且返回这张表。
+// 这个在两个场景会调用到：
+// 1. 本节点收到 readindex ，可以把本节点直接设置成 ack；
+// 2. follower 节点发过来的 heartbeat resp，可以把对应 follower 节点设置成 ack；
 // recvAck notifies the readonly struct that the raft state machine received
 // an acknowledgment of the heartbeat that attached with the read only request
 // context.
