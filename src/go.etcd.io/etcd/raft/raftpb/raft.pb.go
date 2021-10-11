@@ -88,7 +88,7 @@ const (
 	MsgProp           MessageType = 2  // 本地消息：Propose 产生的本地消息，触发 MsgApp 消息
 	MsgApp            MessageType = 3  // 非本地：oplog 复制/配置变更的请求消息
 	MsgAppResp        MessageType = 4  // 非本地：oplog 复制 response 消息
-	MsgVote           MessageType = 5  // 非本地：投票的消息
+	MsgVote           MessageType = 5  // 非本地：投票的消息, 在 raft.campaign 发出这个类型的消息
 	MsgVoteResp       MessageType = 6  // 非本地：投票的响应
 	MsgSnap           MessageType = 7  // 非本地：
 	MsgHeartbeat      MessageType = 8  // 非本地：心跳包，Leader 向 follower 发送
@@ -100,7 +100,7 @@ const (
 	MsgTimeoutNow     MessageType = 14 // 非本地：
 	MsgReadIndex      MessageType = 15 // 非本地：
 	MsgReadIndexResp  MessageType = 16 // 非本地：
-	MsgPreVote        MessageType = 17 // 非本地：预投票的消息
+	MsgPreVote        MessageType = 17 // 非本地：预投票的消息, 在 raft.campaign 发出这个类型的消息
 	MsgPreVoteResp    MessageType = 18 // 非本地：预投票的响应
 )
 

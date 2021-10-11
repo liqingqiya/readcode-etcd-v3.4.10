@@ -279,6 +279,7 @@ type EtcdServer struct {
 	*AccessController
 }
 
+// 创建一个 etcd server
 // NewServer creates a new EtcdServer from the supplied configuration. The
 // configuration is considered static for the lifetime of the EtcdServer.
 func NewServer(cfg ServerConfig) (srv *EtcdServer, err error) {

@@ -381,6 +381,7 @@ func newRaft(c *Config) *raft {
 	// 初始化集群配置 switchToConfig
 	assertConfStatesEquivalent(r.logger, cs, r.switchToConfig(cfg, prs))
 
+	// 加载出持久化了的 raft 的状态，比如 term，vote，commit index 等
 	if !IsEmptyHardState(hs) {
 		r.loadState(hs)
 	}
@@ -1044,6 +1045,7 @@ func (r *raft) Step(m pb.Message) error {
 				// 真正投票之后，计数清零
 				// Only record real votes.
 				r.electionElapsed = 0
+				// 记录投票给了谁
 				r.Vote = m.From
 			}
 		} else {

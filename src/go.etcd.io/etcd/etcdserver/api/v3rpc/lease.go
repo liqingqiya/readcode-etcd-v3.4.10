@@ -103,8 +103,11 @@ func (ls *LeaseServer) LeaseKeepAlive(stream pb.Lease_LeaseKeepAliveServer) (err
 	return err
 }
 
+// 租约保活
 func (ls *LeaseServer) leaseKeepAlive(stream pb.Lease_LeaseKeepAliveServer) error {
+	// 循环
 	for {
+		// 获取到一个请求
 		req, err := stream.Recv()
 		if err == io.EOF {
 			return nil
@@ -136,6 +139,7 @@ func (ls *LeaseServer) leaseKeepAlive(stream pb.Lease_LeaseKeepAliveServer) erro
 		resp := &pb.LeaseKeepAliveResponse{ID: req.ID, Header: &pb.ResponseHeader{}}
 		ls.hdr.fill(resp.Header)
 
+		// 租约续期
 		ttl, err := ls.le.LeaseRenew(stream.Context(), lease.LeaseID(req.ID))
 		if err == lease.ErrLeaseNotFound {
 			err = nil
