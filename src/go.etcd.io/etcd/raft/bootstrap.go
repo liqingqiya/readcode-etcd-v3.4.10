@@ -57,7 +57,7 @@ func (rn *RawNode) Bootstrap(peers []Peer) error {
 		if err != nil {
 			return err
 		}
-
+		// 最早的 index：1，2，3
 		ents[i] = pb.Entry{Type: pb.EntryConfChange, Term: 1, Index: uint64(i + 1), Data: data}
 	}
 	// 列表扩容的消息走 raft 状态机
@@ -75,7 +75,8 @@ func (rn *RawNode) Bootstrap(peers []Peer) error {
 	//
 	// TODO(bdarnell): These entries are still unstable; do we need to preserve
 	// the invariant that committed < unstable?
-	// 初始化的时候，初始化 raftLog.committed 的值
+	// 初始化的时候，初始化 raftLog.committed 的值(这个有意思了)
+	// 这个会导致这几条日志会被再 apply ，commit = 3，apply = 0，ready 就能出去。
 	rn.raft.raftLog.committed = uint64(len(ents))
 	for _, peer := range peers {
 		rn.raft.applyConfChange(pb.ConfChange{NodeID: peer.ID, Type: pb.ConfChangeAddNode}.AsV2())

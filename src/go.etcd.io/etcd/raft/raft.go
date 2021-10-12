@@ -810,6 +810,7 @@ func (r *raft) becomeLeader() {
 	// could be expensive.
 	r.pendingConfIndex = r.raftLog.lastIndex()
 
+	// 成为 leader 的第一件事，发一个 empty entry 广播出去。
 	emptyEnt := pb.Entry{Data: nil}
 	if !r.appendEntry(emptyEnt) {
 		// This won't happen because we just called reset() above.
@@ -1049,6 +1050,7 @@ func (r *raft) Step(m pb.Message) error {
 				r.Vote = m.From
 			}
 		} else {
+			// 如果已经投了别人，那么拒绝
 			r.logger.Infof("%x [logterm: %d, index: %d, vote: %x] rejected %s from %x [logterm: %d, index: %d] at term %d",
 				r.id, r.raftLog.lastTerm(), r.raftLog.lastIndex(), r.Vote, m.Type, m.From, m.LogTerm, m.Index, r.Term)
 			r.send(pb.Message{To: m.From, Term: r.Term, Type: voteRespMsgType(m.Type), Reject: true})
@@ -1632,6 +1634,7 @@ func (r *raft) promotable() bool {
 
 // 配置变更
 func (r *raft) applyConfChange(cc pb.ConfChangeV2) pb.ConfState {
+	// 不断的更新出 cfg，prs
 	cfg, prs, err := func() (tracker.Config, tracker.ProgressMap, error) {
 		// 创建 changer 对象
 		changer := confchange.Changer{
