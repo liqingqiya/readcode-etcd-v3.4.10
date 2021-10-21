@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
-	"strconv"
 	"time"
 
 	"go.etcd.io/etcd/auth"
@@ -610,7 +609,6 @@ func (s *EtcdServer) doSerialize(ctx context.Context, chk func(*auth.AuthInfo) e
 }
 
 func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.InternalRaftRequest) (*applyResult, error) {
-	s.lg.Info("v3 process Request ...")
 	// apply 游标
 	ai := s.getAppliedIndex()
 	// commited 游标
@@ -647,8 +645,6 @@ func (s *EtcdServer) processInternalRaftRequestOnce(ctx context.Context, r pb.In
 	if id == 0 {
 		id = r.Header.ID
 	}
-
-	s.lg.Info("process v3 request :", zap.String("id", strconv.Itoa(int(id))))
 
 	// 注册结果等待
 	ch := s.w.Register(id)
