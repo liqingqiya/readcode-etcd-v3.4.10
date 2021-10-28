@@ -116,6 +116,7 @@ func (s *EtcdServer) newApplierV3() applierV3 {
 	)
 }
 
+// 业务应用
 func (a *applierV3backend) Apply(r *pb.InternalRaftRequest) *applyResult {
 	ar := &applyResult{}
 	defer func(start time.Time) {
@@ -184,6 +185,7 @@ func (a *applierV3backend) Apply(r *pb.InternalRaftRequest) *applyResult {
 	return ar
 }
 
+// Put 请求 apply
 func (a *applierV3backend) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (resp *pb.PutResponse, trace *traceutil.Trace, err error) {
 	resp = &pb.PutResponse{}
 	resp.Header = &pb.ResponseHeader{}
@@ -192,6 +194,7 @@ func (a *applierV3backend) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (resp *pb.Pu
 		traceutil.Field{Key: "key", Value: string(p.Key)},
 		traceutil.Field{Key: "req_size", Value: proto.Size(p)},
 	)
+	// 获取值
 	val, leaseID := p.Value, lease.LeaseID(p.Lease)
 	if txn == nil {
 		if leaseID != lease.NoLease {
@@ -232,6 +235,7 @@ func (a *applierV3backend) Put(txn mvcc.TxnWrite, p *pb.PutRequest) (resp *pb.Pu
 		}
 	}
 
+	// 写入持久化存储
 	resp.Header.Revision = txn.Put(p.Key, val, leaseID)
 	trace.AddField(traceutil.Field{Key: "response_revision", Value: resp.Header.Revision})
 	return resp, trace, nil

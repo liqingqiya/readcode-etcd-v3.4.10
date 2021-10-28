@@ -3475,6 +3475,7 @@ func (c *kVClient) Range(ctx context.Context, in *RangeRequest, opts ...grpc.Cal
 	return out, nil
 }
 
+// 客户端 Put 的实现
 func (c *kVClient) Put(ctx context.Context, in *PutRequest, opts ...grpc.CallOption) (*PutResponse, error) {
 	out := new(PutResponse)
 	err := grpc.Invoke(ctx, "/etcdserverpb.KV/Put", in, out, c.cc, opts...)
@@ -3535,6 +3536,7 @@ type KVServer interface {
 	Compact(context.Context, *CompactionRequest) (*CompactionResponse, error)
 }
 
+// Server 端 KV 键值 rpc 映射表注册
 func RegisterKVServer(s *grpc.Server, srv KVServer) {
 	s.RegisterService(&_KV_serviceDesc, srv)
 }

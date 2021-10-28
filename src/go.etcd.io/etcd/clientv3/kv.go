@@ -110,6 +110,7 @@ func NewKVFromKVClient(remote pb.KVClient, c *Client) KV {
 	return api
 }
 
+// 客户端 Put 的实现
 func (kv *kv) Put(ctx context.Context, key, val string, opts ...OpOption) (*PutResponse, error) {
 	r, err := kv.Do(ctx, OpPut(key, val, opts...))
 	return r.put, toErr(ctx, err)
@@ -153,6 +154,7 @@ func (kv *kv) Do(ctx context.Context, op Op) (OpResponse, error) {
 	case tPut:
 		var resp *pb.PutResponse
 		r := &pb.PutRequest{Key: op.key, Value: op.val, Lease: int64(op.leaseID), PrevKv: op.prevKV, IgnoreValue: op.ignoreValue, IgnoreLease: op.ignoreLease}
+		// 发送 Put 请求
 		resp, err = kv.remote.Put(ctx, r, kv.callOpts...)
 		if err == nil {
 			return OpResponse{put: (*PutResponse)(resp)}, nil
