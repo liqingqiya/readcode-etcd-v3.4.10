@@ -24,6 +24,7 @@ type txBuffer struct {
 	buckets map[string]*bucketBuffer
 }
 
+// 清空掉 buffer 里面的 kv
 func (txb *txBuffer) reset() {
 	for k, v := range txb.buckets {
 		if v.used == 0 {
@@ -34,6 +35,7 @@ func (txb *txBuffer) reset() {
 	}
 }
 
+// 对写请求的 buffer 封装
 // txWriteBuffer buffers writes of pending updates that have not yet committed.
 type txWriteBuffer struct {
 	txBuffer
@@ -56,6 +58,7 @@ func (txw *txWriteBuffer) putSeq(bucket, k, v []byte) {
 	b.add(k, v)
 }
 
+// 把 txWriteBuffer 回写到 txReadBuffer 里面
 func (txw *txWriteBuffer) writeback(txr *txReadBuffer) {
 	for k, wb := range txw.buckets {
 		rb, ok := txr.buckets[k]
@@ -70,12 +73,15 @@ func (txw *txWriteBuffer) writeback(txr *txReadBuffer) {
 		}
 		rb.merge(wb)
 	}
+	// 清空 txw
 	txw.reset()
 }
 
+// 访问的 buffer 更新
 // txReadBuffer accesses buffered updates.
 type txReadBuffer struct{ txBuffer }
 
+// 查找 bucket 里面从 [ key, endKey ]的 kv
 func (txr *txReadBuffer) Range(bucketName, key, endKey []byte, limit int64) ([][]byte, [][]byte) {
 	if b := txr.buckets[string(bucketName)]; b != nil {
 		return b.Range(key, endKey, limit)
@@ -83,6 +89,7 @@ func (txr *txReadBuffer) Range(bucketName, key, endKey []byte, limit int64) ([][
 	return nil, nil
 }
 
+// 遍历执行 bucket 里面所有的 kv
 func (txr *txReadBuffer) ForEach(bucketName []byte, visitor func(k, v []byte) error) error {
 	if b := txr.buckets[string(bucketName)]; b != nil {
 		return b.ForEach(visitor)
@@ -90,6 +97,7 @@ func (txr *txReadBuffer) ForEach(bucketName []byte, visitor func(k, v []byte) er
 	return nil
 }
 
+// 返回 txReadBuffer 的副本
 // unsafeCopy returns a copy of txReadBuffer, caller should acquire backend.readTx.RLock()
 func (txr *txReadBuffer) unsafeCopy() txReadBuffer {
 	txrCopy := txReadBuffer{
@@ -110,6 +118,7 @@ type kv struct {
 
 // bucketBuffer buffers key-value pairs that are pending commit.
 type bucketBuffer struct {
+	// buffer 的 kv
 	buf []kv
 	// used tracks number of elements in use so buf can be reused without reallocation.
 	// 使用的位置游标
@@ -198,6 +207,7 @@ func (bb *bucketBuffer) merge(bbsrc *bucketBuffer) {
 
 // 长度以 used 为准
 func (bb *bucketBuffer) Len() int { return bb.used }
+
 // 比较以 key 为准
 func (bb *bucketBuffer) Less(i, j int) bool {
 	return bytes.Compare(bb.buf[i].key, bb.buf[j].key) < 0

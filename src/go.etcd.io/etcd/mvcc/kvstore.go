@@ -126,7 +126,7 @@ func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ig ConsistentI
 		cfg:     cfg,
 		b:       b,
 		ig:      ig,
-		kvindex: newTreeIndex(lg),	// B 树
+		kvindex: newTreeIndex(lg), // B 树
 
 		le: le,
 
@@ -158,6 +158,7 @@ func NewStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, ig ConsistentI
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// 恢复数据，构建内存结构
 	if err := s.restore(); err != nil {
 		// TODO: return the error instead of panic here?
 		panic("failed to recover store from backend")
@@ -400,8 +401,10 @@ func (s *store) restore() error {
 
 	// index keys concurrently as they're loaded in from tx
 	keysGauge.Set(0)
+	// 恢复 key index
 	rkvc, revc := restoreIntoIndex(s.lg, s.kvindex)
 	for {
+		// 重要：遍历 bucket 里面所有的 key ，构建一颗纯内存的 key index tree
 		keys, vals := tx.UnsafeRange(keyBucketName, min, max, int64(restoreChunkKeys))
 		if len(keys) == 0 {
 			break

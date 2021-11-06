@@ -15,7 +15,7 @@ hack/tls-setup/certs
 .idea
 /contrib/raftexample/raftexample
 /contrib/raftexample/raftexample-*
-
+.vscode/
 /pkg/
 
 *.bak

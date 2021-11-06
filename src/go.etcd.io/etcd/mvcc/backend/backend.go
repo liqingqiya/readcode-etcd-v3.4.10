@@ -197,10 +197,12 @@ func newBackend(bcfg BackendConfig) *backend {
 	}
 	// New 一个读写事务
 	b.batchTx = newBatchTxBuffered(b)
+	// 后台递交
 	go b.run()
 	return b
 }
 
+// 返回一个读写事务
 // BatchTx returns the current batch tx in coalescer. The tx can be used for read and
 // write operations. The write result can be retrieved within the same tx immediately.
 // The write result is isolated with other txs until the current one get committed.
@@ -208,14 +210,19 @@ func (b *backend) BatchTx() BatchTx {
 	return b.batchTx
 }
 
+// 返回一个只读事务
 func (b *backend) ReadTx() ReadTx { return b.readTx }
 
+// 创建一个新的 ReadTx
+// - 创建并保留 backend.readTx.txReadBuffer
+// - 引用 readTx
 // ConcurrentReadTx creates and returns a new ReadTx, which:
 // A) creates and keeps a copy of backend.readTx.txReadBuffer,
 // B) references the boltdb read Tx (and its bucket cache) of current batch interval.
 func (b *backend) ConcurrentReadTx() ReadTx {
 	b.readTx.RLock()
 	defer b.readTx.RUnlock()
+	// 并发读事务，计数加 1
 	// prevent boltdb read Tx from been rolled back until store read Tx is done. Needs to be called when holding readTx.RLock().
 	b.readTx.txWg.Add(1)
 	// TODO: might want to copy the read buffer lazily - create copy when A) end of a write transaction B) end of a batch interval.
@@ -239,6 +246,7 @@ func (b *backend) Snapshot() Snapshot {
 
 	b.mu.RLock()
 	defer b.mu.RUnlock()
+	// 开启一个只读事务
 	tx, err := b.db.Begin(false)
 	if err != nil {
 		if b.lg != nil {
@@ -333,7 +341,7 @@ func (b *backend) SizeInUse() int64 {
 	return atomic.LoadInt64(&b.sizeInUse)
 }
 
-// 单独协程处理
+// 后台定期递交数据，下刷磁盘
 func (b *backend) run() {
 	defer close(b.donec)
 	t := time.NewTimer(b.batchInterval)

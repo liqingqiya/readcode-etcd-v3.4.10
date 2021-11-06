@@ -252,6 +252,7 @@ func (t *batchTx) commit(stop bool) {
 		spillSec.Observe(t.tx.Stats().SpillTime.Seconds())
 		writeSec.Observe(t.tx.Stats().WriteTime.Seconds())
 		commitSec.Observe(time.Since(start).Seconds())
+		// 累计计数 commit 的总次数
 		atomic.AddInt64(&t.backend.commits, 1)
 
 		t.pending = 0
@@ -330,10 +331,12 @@ func (t *batchTxBuffered) commit(stop bool) {
 }
 
 func (t *batchTxBuffered) unsafeCommit(stop bool) {
+	// 如果有读事务
 	if t.backend.readTx.tx != nil {
 		// wait all store read transactions using the current boltdb tx to finish,
 		// then close the boltdb tx
 		go func(tx *bolt.Tx, wg *sync.WaitGroup) {
+			// 等待所有的并发读事务完成
 			wg.Wait()
 			if err := tx.Rollback(); err != nil {
 				if t.backend.lg != nil {
@@ -346,11 +349,11 @@ func (t *batchTxBuffered) unsafeCommit(stop bool) {
 		t.backend.readTx.reset()
 	}
 
-	// 赋值 batchTx.tx
+	// 递交事务，并赋值新的 batchTx.tx
 	t.batchTx.commit(stop)
 
 	if !stop {
-		// 赋值 ReadTx.tx
+		// 赋值新的 ReadTx.tx
 		t.backend.readTx.tx = t.backend.begin(false)
 	}
 }

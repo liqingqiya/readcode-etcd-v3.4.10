@@ -45,7 +45,7 @@ type readTx struct {
 
 	// TODO: group and encapsulate {txMu, tx, buckets, txWg}, as they share the same lifecycle.
 	// txMu protects accesses to buckets and tx on Range requests.
-	txMu    sync.RWMutex
+	txMu sync.RWMutex
 	// bolt 事务封装
 	tx      *bolt.Tx
 	buckets map[string]*bolt.Bucket
@@ -66,6 +66,7 @@ func (rt *readTx) UnsafeRange(bucketName, key, endKey []byte, limit int64) ([][]
 	if limit <= 0 {
 		limit = math.MaxInt64
 	}
+	// 必须要 safeRangeBucket 相同的名字
 	if limit > 1 && !bytes.Equal(bucketName, safeRangeBucket) {
 		panic("do not use unsafeRange on non-keys bucket")
 	}
@@ -148,6 +149,7 @@ func (rt *concurrentReadTx) Unlock() {}
 // RLock is no-op. concurrentReadTx does not need to be locked after it is created.
 func (rt *concurrentReadTx) RLock() {}
 
+// 并发读事务，减计数
 // RUnlock signals the end of concurrentReadTx.
 func (rt *concurrentReadTx) RUnlock() { rt.txWg.Done() }
 
