@@ -58,6 +58,7 @@ func (ti *treeIndex) Put(key []byte, rev revision) {
 
 	ti.Lock()
 	defer ti.Unlock()
+	// 通过 key 去 btree 里找到 keyIndex 结构体
 	item := ti.tree.Get(keyi)
 	if item == nil {
 		// 如果 btree 树上不存在，那么就 insert 上去
@@ -67,6 +68,7 @@ func (ti *treeIndex) Put(key []byte, rev revision) {
 		ti.tree.ReplaceOrInsert(keyi)
 		return
 	}
+	// 找到了现成的，那么就更新这个 keyIndex
 	okeyi := item.(*keyIndex)
 	okeyi.put(ti.lg, rev.main, rev.sub)
 }
@@ -81,15 +83,18 @@ func (ti *treeIndex) Get(key []byte, atRev int64) (modified, created revision, v
 	if keyi = ti.keyIndex(keyi); keyi == nil {
 		return revision{}, revision{}, 0, ErrRevisionNotFound
 	}
+	// 获取到 keyIndex 之后，就可以根据 revision 去查找对应的版本了
 	return keyi.get(ti.lg, atRev)
 }
 
 func (ti *treeIndex) KeyIndex(keyi *keyIndex) *keyIndex {
 	ti.RLock()
 	defer ti.RUnlock()
+	// 根据 key 查找 keyIndex
 	return ti.keyIndex(keyi)
 }
 
+// 通过 key 去 b 树上查找 keyIndex 。keyIndex 的 Less 定义成比较 key
 func (ti *treeIndex) keyIndex(keyi *keyIndex) *keyIndex {
 	if item := ti.tree.Get(keyi); item != nil {
 		return item.(*keyIndex)
@@ -97,6 +102,7 @@ func (ti *treeIndex) keyIndex(keyi *keyIndex) *keyIndex {
 	return nil
 }
 
+// 遍历 b 树节点
 func (ti *treeIndex) visit(key, end []byte, f func(ki *keyIndex)) {
 	keyi, endi := &keyIndex{key: key}, &keyIndex{key: end}
 
@@ -120,7 +126,9 @@ func (ti *treeIndex) Revisions(key, end []byte, atRev int64) (revs []revision) {
 		}
 		return []revision{rev}
 	}
+	// 遍历 [key, end] 的 keyIndex
 	ti.visit(key, end, func(ki *keyIndex) {
+		// 获取到指定的 revision 结构
 		if rev, _, _, err := ki.get(ti.lg, atRev); err == nil {
 			revs = append(revs, rev)
 		}
@@ -136,6 +144,7 @@ func (ti *treeIndex) Range(key, end []byte, atRev int64) (keys [][]byte, revs []
 		}
 		return [][]byte{key}, []revision{rev}
 	}
+	// 遍历 [key, end]，获取到指定的 revision 和 key，返回对应的数组；
 	ti.visit(key, end, func(ki *keyIndex) {
 		if rev, _, _, err := ki.get(ti.lg, atRev); err == nil {
 			revs = append(revs, rev)
@@ -156,6 +165,7 @@ func (ti *treeIndex) Tombstone(key []byte, rev revision) error {
 	}
 
 	ki := item.(*keyIndex)
+	// 删除版本（添加一个特殊的东西）
 	return ki.tombstone(ti.lg, rev.main, rev.sub)
 }
 
@@ -204,12 +214,14 @@ func (ti *treeIndex) Compact(rev int64) map[revision]struct{} {
 	clone := ti.tree.Clone()
 	ti.Unlock()
 
+	// 克隆出一个 b 树，用来安全的遍历
 	clone.Ascend(func(item btree.Item) bool {
 		keyi := item.(*keyIndex)
 		//Lock is needed here to prevent modification to the keyIndex while
 		//compaction is going on or revision added to empty before deletion
 		ti.Lock()
 		keyi.compact(ti.lg, rev, available)
+		// 如果空了就从 b 树删除
 		if keyi.isEmpty() {
 			item := ti.tree.Delete(keyi)
 			if item == nil {

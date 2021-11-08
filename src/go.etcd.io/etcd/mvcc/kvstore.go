@@ -401,7 +401,7 @@ func (s *store) restore() error {
 
 	// index keys concurrently as they're loaded in from tx
 	keysGauge.Set(0)
-	// 恢复 key index
+	// 恢复 keyIndex
 	rkvc, revc := restoreIntoIndex(s.lg, s.kvindex)
 	for {
 		// 重要：遍历 bucket 里面所有的 key ，构建一颗纯内存的 key index tree
@@ -478,6 +478,7 @@ type revKeyValue struct {
 	kstr string
 }
 
+// 这可太重要了，把 backend 里面的数据，全部加载到内存（key）
 func restoreIntoIndex(lg *zap.Logger, idx index) (chan<- revKeyValue, <-chan int64) {
 	rkvc, revc := make(chan revKeyValue, restoreChunkKeys), make(chan int64, 1)
 	go func() {
@@ -485,7 +486,9 @@ func restoreIntoIndex(lg *zap.Logger, idx index) (chan<- revKeyValue, <-chan int
 		defer func() { revc <- currentRev }()
 		// restore the tree index from streaming the unordered index.
 		kiCache := make(map[string]*keyIndex, restoreChunkKeys)
+		// 从 channel 里取到数据
 		for rkv := range rkvc {
+			// 查找 key 是否在 kiCache 的 map 里
 			ki, ok := kiCache[rkv.kstr]
 			// purge kiCache if many keys but still missing in the cache
 			if !ok && len(kiCache) >= restoreChunkKeys {
@@ -499,23 +502,30 @@ func restoreIntoIndex(lg *zap.Logger, idx index) (chan<- revKeyValue, <-chan int
 			}
 			// cache miss, fetch from tree index if there
 			if !ok {
+				// 如果没有在 kiCache 的缓存中，那么就 new 一个新的
 				ki = &keyIndex{key: rkv.kv.Key}
 				if idxKey := idx.KeyIndex(ki); idxKey != nil {
 					kiCache[rkv.kstr], ki = idxKey, idxKey
 					ok = true
 				}
 			}
+			// 根据 []byte 反序列化成 revision 结构体
 			rev := bytesToRev(rkv.key)
 			currentRev = rev.main
 			if ok {
 				if isTombstone(rkv.key) {
+					// 加入一个删除点
 					ki.tombstone(lg, rev.main, rev.sub)
 					continue
 				}
+				// 加入到 keyIndex
 				ki.put(lg, rev.main, rev.sub)
 			} else if !isTombstone(rkv.key) {
+				// 构造 keyIndex
 				ki.restore(lg, revision{rkv.kv.CreateRevision, 0}, rev, rkv.kv.Version)
+				// 把 keyIndex 插入 b 树中
 				idx.Insert(ki)
+				// 假如到 map 缓存
 				kiCache[rkv.kstr] = ki
 			}
 		}
@@ -533,6 +543,7 @@ func restoreChunk(lg *zap.Logger, kvc chan<- revKeyValue, keys, vals [][]byte, k
 				plog.Fatalf("cannot unmarshal event: %v", err)
 			}
 		}
+		// 用户 key
 		rkv.kstr = string(rkv.kv.Key)
 		if isTombstone(key) {
 			delete(keyToLease, rkv.kstr)
