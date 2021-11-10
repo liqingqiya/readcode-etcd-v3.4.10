@@ -33,7 +33,7 @@ type storeTxnRead struct {
 }
 
 func (s *store) Read(trace *traceutil.Trace) TxnRead {
-	// store 的读锁
+	// store 的读锁(这个跟写事务不一样)
 	s.mu.RLock()
 	s.revMu.RLock()
 	// backend holds b.readTx.RLock() only when creating the concurrentReadTx. After
@@ -54,7 +54,9 @@ func (tr *storeTxnRead) Range(key, end []byte, ro RangeOptions) (r *RangeResult,
 }
 
 func (tr *storeTxnRead) End() {
+	// 读事务计数减一
 	tr.tx.RUnlock() // RUnlock signals the end of concurrentReadTx.
+	//store 的 mu 解读锁
 	tr.s.mu.RUnlock()
 }
 

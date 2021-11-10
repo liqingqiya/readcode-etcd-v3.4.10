@@ -146,10 +146,11 @@ type concurrentReadTx struct {
 func (rt *concurrentReadTx) Lock()   {}
 func (rt *concurrentReadTx) Unlock() {}
 
+// 并发读事务，加锁操作其实啥都不做
 // RLock is no-op. concurrentReadTx does not need to be locked after it is created.
 func (rt *concurrentReadTx) RLock() {}
 
-// 并发读事务，减计数
+// 并发读事务，解锁其实就是减计数
 // RUnlock signals the end of concurrentReadTx.
 func (rt *concurrentReadTx) RUnlock() { rt.txWg.Done() }
 
