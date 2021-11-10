@@ -136,10 +136,12 @@ func (ws *watchStream) Watch(id WatchID, key, end []byte, startRev int64, fcs ..
 	return id, nil
 }
 
+// 返回一个 channel ，channel 是装 WatchResponse 的
 func (ws *watchStream) Chan() <-chan WatchResponse {
 	return ws.ch
 }
 
+// cancel 掉这个 id
 func (ws *watchStream) Cancel(id WatchID) error {
 	ws.mu.Lock()
 	// cancel 的函数会在 watch 的时候确认，设置好
@@ -166,6 +168,7 @@ func (ws *watchStream) Cancel(id WatchID) error {
 	return nil
 }
 
+// 释放
 func (ws *watchStream) Close() {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()

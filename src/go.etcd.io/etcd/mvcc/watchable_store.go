@@ -15,9 +15,10 @@
 package mvcc
 
 import (
-	"go.etcd.io/etcd/auth"
 	"sync"
 	"time"
+
+	"go.etcd.io/etcd/auth"
 
 	"go.etcd.io/etcd/lease"
 	"go.etcd.io/etcd/mvcc/backend"
@@ -69,19 +70,21 @@ type watchableStore struct {
 // cancel operations.
 type cancelFunc func()
 
-// 创建一个 kv 后端对象
+// 创建一个 kv 后端对象(etcd 调用的就是这个)
 func New(lg *zap.Logger, b backend.Backend, le lease.Lessor, as auth.AuthStore, ig ConsistentIndexGetter, cfg StoreConfig) ConsistentWatchableKV {
 	return newWatchableStore(lg, b, le, as, ig, cfg)
 }
 
+// 把 store 再封装一层 watch
 func newWatchableStore(lg *zap.Logger, b backend.Backend, le lease.Lessor, as auth.AuthStore, ig ConsistentIndexGetter, cfg StoreConfig) *watchableStore {
 	s := &watchableStore{
-		store:    NewStore(lg, b, le, ig, cfg),
+		store:    NewStore(lg, b, le, ig, cfg), // new 一个 store
 		victimc:  make(chan struct{}, 1),
 		unsynced: newWatcherGroup(),
 		synced:   newWatcherGroup(),
 		stopc:    make(chan struct{}),
 	}
+	// 读写事务的界面
 	s.store.ReadView = &readView{s}
 	s.store.WriteView = &writeView{s}
 	if s.le != nil {
@@ -104,6 +107,7 @@ func (s *watchableStore) Close() error {
 	return s.store.Close()
 }
 
+// 创建一个 watch stream
 func (s *watchableStore) NewWatchStream() WatchStream {
 	watchStreamGauge.Inc()
 	return &watchStream{
@@ -195,9 +199,11 @@ func (s *watchableStore) cancelWatcher(wa *watcher) {
 	s.mu.Unlock()
 }
 
+// 恢复加载
 func (s *watchableStore) Restore(b backend.Backend) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// 加载底层数据
 	err := s.store.Restore(b)
 	if err != nil {
 		return err
@@ -243,6 +249,7 @@ func (s *watchableStore) syncWatchersLoop() {
 	}
 }
 
+//
 // syncVictimsLoop tries to write precomputed watcher responses to
 // watchers that had a blocked watcher channel
 func (s *watchableStore) syncVictimsLoop() {
@@ -490,6 +497,7 @@ func (s *watchableStore) addVictim(victim watcherBatch) {
 	}
 }
 
+// 返回事务号
 func (s *watchableStore) rev() int64 { return s.store.Rev() }
 
 func (s *watchableStore) progress(w *watcher) {

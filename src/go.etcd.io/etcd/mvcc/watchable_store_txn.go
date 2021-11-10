@@ -29,16 +29,19 @@ func (tw *watchableStoreTxnWrite) End() {
 		tw.TxnWrite.End()
 		return
 	}
-
+	// 获取版本号
 	rev := tw.Rev() + 1
 	// 构建 events
 	evs := make([]mvccpb.Event, len(changes))
+	// 遍历这个 changes 数组，构造 event 数组，构造完之后，使用 notify
 	for i, change := range changes {
 		evs[i].Kv = &changes[i]
 		if change.CreateRevision == 0 {
+			// 删除事件
 			evs[i].Type = mvccpb.DELETE
 			evs[i].Kv.ModRevision = rev
 		} else {
+			// 上传事件
 			evs[i].Type = mvccpb.PUT
 		}
 	}
@@ -48,6 +51,7 @@ func (tw *watchableStoreTxnWrite) End() {
 	tw.s.mu.Lock()
 	// watch 写事务完了之后，通知 watcher
 	tw.s.notify(rev, evs)
+	// 调用底层的 End
 	tw.TxnWrite.End()
 	tw.s.mu.Unlock()
 }
