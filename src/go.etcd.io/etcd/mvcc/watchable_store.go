@@ -366,9 +366,12 @@ func (s *watchableStore) syncWatchers() int {
 	// values are actual key-value pairs in backend.
 	tx := s.store.b.ReadTx()
 	tx.RLock()
+	// 这个代价有点大吧？怎么都不区分下 key ，而是直接通过 rev 来查找？
+	// 在下面才会捞出来需要的 key 相关的事件
 	revs, vs := tx.UnsafeRange(keyBucketName, minBytes, maxBytes, 0)
 	var evs []mvccpb.Event
 	if s.store != nil && s.store.lg != nil {
+		// 过滤出需要的 key 的 revision（ vs 里面包含了其他的 key ）
 		evs = kvsToEvents(s.store.lg, wg, revs, vs)
 	} else {
 		// TODO: remove this in v3.5
@@ -426,6 +429,7 @@ func (s *watchableStore) syncWatchers() int {
 
 // kvsToEvents gets all events for the watchers from all key-value pairs
 func kvsToEvents(lg *zap.Logger, wg *watcherGroup, revs, vals [][]byte) (evs []mvccpb.Event) {
+	// 遍历捞出来的的所有的 val
 	for i, v := range vals {
 		var kv mvccpb.KeyValue
 		if err := kv.Unmarshal(v); err != nil {
@@ -435,7 +439,7 @@ func kvsToEvents(lg *zap.Logger, wg *watcherGroup, revs, vals [][]byte) (evs []m
 				plog.Panicf("cannot unmarshal event: %v", err)
 			}
 		}
-
+		// 看下这个 key 是否被某个 watcher 监听需要？
 		if !wg.contains(string(kv.Key)) {
 			continue
 		}
