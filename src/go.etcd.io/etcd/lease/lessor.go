@@ -393,6 +393,7 @@ func (le *lessor) Renew(id LeaseID) (int64, error) {
 		// The expired lease might fail to be revoked if the primary changes.
 		// The caller will retry on ErrNotPrimary.
 		case <-demotec:
+			// 非主节点
 			return -1, ErrNotPrimary
 		case <-le.stopC:
 			return -1, ErrNotPrimary
@@ -510,6 +511,7 @@ func (le *lessor) Demote() {
 	le.clearLeaseExpiredNotifier()
 
 	if le.demotec != nil {
+		// 已经非 leader 了，所以关闭 channel
 		close(le.demotec)
 		le.demotec = nil
 	}
