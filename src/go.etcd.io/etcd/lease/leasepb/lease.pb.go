@@ -39,6 +39,7 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
+// Lease 持久化的结构体，存储 ID，ttl，remainTTL 这三个信息
 type Lease struct {
 	ID           int64 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	TTL          int64 `protobuf:"varint,2,opt,name=TTL,proto3" json:"TTL,omitempty"`

@@ -210,6 +210,7 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 	if err == nil {
 		// 如果没有错误，说明找到了 key，有历史版本, 把创建 key 时候的版本返回
 		c = created.main
+		// 通过 key 找到一个旧的 Lease ？
 		oldLease = tw.s.le.GetLease(lease.LeaseItem{Key: string(key)})
 	}
 	tw.trace.Step("get key's previous created_revision and leaseID")
@@ -269,6 +270,7 @@ func (tw *storeTxnWrite) put(key, value []byte, leaseID lease.LeaseID) {
 		if tw.s.le == nil {
 			panic("no lessor to attach lease")
 		}
+		// LeaseID 和 key 关联起来
 		err = tw.s.le.Attach(leaseID, []lease.LeaseItem{{Key: string(key)}})
 		if err != nil {
 			panic("unexpected error from lease Attach")
@@ -334,9 +336,11 @@ func (tw *storeTxnWrite) delete(key []byte) {
 	tw.changes = append(tw.changes, kv)
 
 	item := lease.LeaseItem{Key: string(key)}
+	// 找到这个 key 有关联的 LeaseID
 	leaseID := tw.s.le.GetLease(item)
 
 	if leaseID != lease.NoLease {
+		// 把这个 key 和这个 lease 分离
 		err = tw.s.le.Detach(leaseID, []lease.LeaseItem{item})
 		if err != nil {
 			if tw.storeTxnRead.s.lg != nil {

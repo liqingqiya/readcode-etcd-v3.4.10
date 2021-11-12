@@ -148,10 +148,10 @@ type lessor struct {
 	// demotec will be closed if the lessor is demoted.
 	demotec chan struct{}
 
-	leaseMap             map[LeaseID]*Lease
-	leaseExpiredNotifier *LeaseExpiredNotifier
-	leaseCheckpointHeap  LeaseQueue
-	itemMap              map[LeaseItem]LeaseID
+	leaseMap             map[LeaseID]*Lease    // 用来快速查找 LeaseID 的 Lease 结构体
+	leaseExpiredNotifier *LeaseExpiredNotifier // 用来判断是否超时的队列结构
+	leaseCheckpointHeap  LeaseQueue            // 用来判断是否需要 checkpoint 的队列结构
+	itemMap              map[LeaseItem]LeaseID // 用来快速查找 key 的 LeaseID 的映射表
 
 	// When a lease expires, the lessor will delete the
 	// leased range (or key) by the RangeDeleter.
@@ -285,6 +285,7 @@ func (le *lessor) Grant(id LeaseID, ttl int64) (*Lease, error) {
 	}
 
 	if le.isPrimary() {
+		// 根据 remainingTTL 设置了 expiry
 		l.refresh(0)
 	} else {
 		l.forever()
@@ -298,6 +299,7 @@ func (le *lessor) Grant(id LeaseID, ttl int64) (*Lease, error) {
 
 	if le.isPrimary() {
 		item := &LeaseWithTime{id: l.ID, time: l.expiry.UnixNano()}
+		// 投递到一个带小堆的队列中
 		le.leaseExpiredNotifier.RegisterOrUpdate(item)
 		le.scheduleCheckpointIfNeeded(l)
 	}
@@ -527,7 +529,9 @@ func (le *lessor) Attach(id LeaseID, items []LeaseItem) error {
 
 	l.mu.Lock()
 	for _, it := range items {
+		// 把这个 key 放到 Lease 结构体里
 		l.itemSet[it] = struct{}{}
+		// 把这个 key 放到 lessor 的结构体里，这里作为一个平坦的 map
 		le.itemMap[it] = id
 	}
 	l.mu.Unlock()
@@ -536,6 +540,7 @@ func (le *lessor) Attach(id LeaseID, items []LeaseItem) error {
 
 func (le *lessor) GetLease(item LeaseItem) LeaseID {
 	le.mu.RLock()
+	// 快速获取到这个 key 对应的 Lease
 	id := le.itemMap[item]
 	le.mu.RUnlock()
 	return id
@@ -554,7 +559,9 @@ func (le *lessor) Detach(id LeaseID, items []LeaseItem) error {
 
 	l.mu.Lock()
 	for _, it := range items {
+		// 从这个 Lease 删除掉
 		delete(l.itemSet, it)
+		// 从 lessor 中删掉这个 key
 		delete(le.itemMap, it)
 	}
 	l.mu.Unlock()
@@ -585,7 +592,9 @@ func (le *lessor) runLoop() {
 	defer close(le.doneC)
 
 	for {
+		// 定期清理过时的 Lease
 		le.revokeExpiredLeases()
+		// 定期更新 remainingTTL ，默认是 5 分钟一次
 		le.checkpointScheduledLeases()
 
 		select {
@@ -661,18 +670,22 @@ func (le *lessor) expireExists() (l *Lease, ok bool, next bool) {
 		return nil, false, false
 	}
 
+	// 获取一个最小的 item ，这个是最可能超时的（如果这个都没超时，那就不用看了）
 	item := le.leaseExpiredNotifier.Poll()
 	l = le.leaseMap[item.id]
 	if l == nil {
+		// 已经超时或者已经被销毁的场景
 		// lease has expired or been revoked
 		// no need to revoke (nothing is expiry)
 		le.leaseExpiredNotifier.Unregister() // O(log N)
 		return nil, false, true
 	}
 	now := time.Now()
+	// 看是否超时
 	if now.UnixNano() < item.time /* expiration time */ {
 		// Candidate expirations are caught up, reinsert this item
 		// and no need to revoke (nothing is expiry)
+		// 没超时
 		return l, false, false
 	}
 
@@ -740,9 +753,11 @@ func (le *lessor) findDueScheduledCheckpoints(checkpointLimit int) []*pb.LeaseCh
 	cps := []*pb.LeaseCheckpoint{}
 	for le.leaseCheckpointHeap.Len() > 0 && len(cps) < checkpointLimit {
 		lt := le.leaseCheckpointHeap[0]
+		// 去一个最小的 item 出来，看是否需要 checkpoint 了
 		if lt.time /* next checkpoint time */ > now.UnixNano() {
 			return cps
 		}
+		// 该做 checkpoint 了，于是把它 pop 出来
 		heap.Pop(&le.leaseCheckpointHeap)
 		var l *Lease
 		var ok bool
@@ -821,6 +836,7 @@ func (l *Lease) expired() bool {
 	return l.Remaining() <= 0
 }
 
+// lease 持久化
 func (l *Lease) persistTo(b backend.Backend) {
 	key := int64ToBytes(int64(l.ID))
 

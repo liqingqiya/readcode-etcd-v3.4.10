@@ -434,10 +434,12 @@ func (s *store) restore() error {
 		scheduledCompact = 0
 	}
 
+	// 遍历这些和有 Lease 关联的 key
 	for key, lid := range keyToLease {
 		if s.le == nil {
 			panic("no lessor to attach lease")
 		}
+		// Lease ID 和 key 关联起来
 		err := s.le.Attach(lid, []lease.LeaseItem{{Key: key}})
 		if err != nil {
 			if s.lg != nil {
